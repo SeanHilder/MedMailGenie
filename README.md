@@ -3,6 +3,8 @@ intelligent email assistant for medical professionals
 
 # SCRUM design framework
 
+Trello Link - https://trello.com/invite/b/6a717368a8b4ec37a212e840/ATTIb0eefbc746cc93870f1e0870e9454ef38D5FBC4B/my-trello-board
+
 Scrum relies on fixed-length cycles (usually 1 to 4 weeks long) called Sprints. Everything in Scrum happens inside a Sprint container.
 
 1.Sprint Planning:Kick-off event (Timeboxed: ~2 hrs per week of sprint length).The entire team meets to answer two main questions: What can be delivered in this Sprint, and How will that work get done? The team aligns on a Sprint Goal and selects items from the top of the Product Backlog to form the Sprint Backlog.
