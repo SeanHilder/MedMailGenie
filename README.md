@@ -1,6 +1,9 @@
 # MedMailGenie
 intelligent email assistant for medical professionals
 
+# Sample Email Dataset
+https://www.kaggle.com/datasets/naserabdullahalam/phishing-email-dataset
+
 # SCRUM design framework
 
 Trello Link - https://trello.com/invite/b/6a717368a8b4ec37a212e840/ATTIb0eefbc746cc93870f1e0870e9454ef38D5FBC4B/my-trello-board
