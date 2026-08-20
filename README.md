@@ -19,3 +19,36 @@ Scrum relies on fixed-length cycles (usually 1 to 4 weeks long) called Sprints. 
 4.Sprint Review:Held at the end of the Sprint with stakeholders.The team demonstrates the working Increment to key business stakeholders. This isn't just a presentation; it's a collaborative session to gather feedback, discuss market changes, and adapt the Product Backlog for upcoming sprints.
 
 5.Sprint Retrospective:Internal team reflective wrap-up.The final event of the Sprint. The Scrum Team inspects how they worked together regarding processes, tools, communication, and team dynamics. They identify 1–2 actionable improvements to implement in the next Sprint.
+
+
+# MedMailGenie Structure
+MedMailGenie/
+│
+├── src/
+│   ├── background/
+│   │   └── background.ts
+│   │
+│   ├── content/
+│   │   └── content.ts
+│   │
+│   ├── popup/
+│   │   ├── popup.html
+│   │   ├── popup.ts
+│   │   └── popup.css
+│   │
+│   ├── options/
+│   │   ├── options.html
+│   │   └── options.ts
+│   │
+│   └── types/
+│       └── index.ts
+│
+├── public/
+│   └── icons/
+│
+├── manifest.json
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
+
+Or just have a look at this chat log https://chatgpt.com/share/6a864f21-c074-83ec-9e5e-a53b7412559f
