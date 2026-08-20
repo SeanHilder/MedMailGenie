@@ -22,6 +22,7 @@ Scrum relies on fixed-length cycles (usually 1 to 4 weeks long) called Sprints. 
 
 
 # MedMailGenie Structure
+```text
 MedMailGenie/
 │
 ├── src/
@@ -50,5 +51,6 @@ MedMailGenie/
 ├── package.json
 ├── tsconfig.json
 └── vite.config.ts
+```
 
 Or just have a look at this chat log https://chatgpt.com/share/6a864f21-c074-83ec-9e5e-a53b7412559f
