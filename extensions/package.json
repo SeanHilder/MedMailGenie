@@ -1,11 +1,14 @@
 {
   "name": "medmailgenie",
   "version": "1.0.0",
+  "type": "module",
   "description": "intelligent email assistant for medical professionals",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+    "build": "vite build",
+    "dev": "vite",
+    "type-check": "tsc --noEmit"
+},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SeanHilder/MedMailGenie.git"
@@ -13,7 +16,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "bugs": {
     "url": "https://github.com/SeanHilder/MedMailGenie/issues"
   },
