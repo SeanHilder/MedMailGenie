@@ -1,0 +1,1 @@
+do not change """dist/manifest.json""", instead, change """extensions/manifest.json""", run """npm run build"""
