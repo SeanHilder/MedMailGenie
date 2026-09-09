@@ -1,0 +1,1 @@
+console.log(`MedMailGenie content script loaded`);
