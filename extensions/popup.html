@@ -1,13 +1,975 @@
 <!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>MedMailGenie</title>
-</head>
-<body>
-  <h1>MedMailGenie</h1>
-  <p>Extension is working!</p>
+<html lang="en">
 
-  <script type="module" src="/src/popup.ts"></script>
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>MedMailGenie</title>
+
+  <style>
+
+    /* =========================================
+       Global Popup Styling
+       ========================================= */
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      width: 360px;
+
+      font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Arial,
+        sans-serif;
+
+      background: #f4f6f9;
+      color: #1f2937;
+    }
+
+
+    /* =========================================
+       Main Container
+       ========================================= */
+
+    .container {
+      padding: 14px;
+    }
+
+
+    /* =========================================
+       MedMailGenie Logo Header
+       ========================================= */
+
+    /*
+      The top section contains the
+      MedMailGenie branding image.
+    */
+    .brand-header {
+      width: 100%;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      margin-bottom: 10px;
+
+      background: white;
+
+      border-radius: 12px;
+
+      overflow: hidden;
+    }
+
+
+    /*
+      Makes the MedMailGenie image automatically
+      fit the width of the Chrome extension.
+    */
+    .brand-logo {
+      width: 100%;
+      height: auto;
+
+      display: block;
+
+      object-fit: contain;
+    }
+
+
+    /* =========================================
+       AI Assistant Status
+       ========================================= */
+
+    .status-banner {
+      display: flex;
+      align-items: center;
+
+      gap: 8px;
+
+      padding: 9px 11px;
+
+      margin-bottom: 10px;
+
+      border: 1px solid #dbeafe;
+      border-radius: 10px;
+
+      background: #eff6ff;
+
+      font-size: 12px;
+      font-weight: 600;
+
+      color: #1e40af;
+    }
+
+
+    /*
+      Small green circle indicating that
+      the AI assistant is available.
+    */
+    .status-dot {
+      width: 8px;
+      height: 8px;
+
+      border-radius: 50%;
+
+      background: #22c55e;
+
+      flex-shrink: 0;
+    }
+
+
+    /* =========================================
+       Cards
+       ========================================= */
+
+    /*
+      Reusable card used for:
+      - Current Email
+      - AI Summary
+      - Suggested Reply
+    */
+    .card {
+      background: white;
+
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+
+      padding: 12px;
+
+      margin-bottom: 10px;
+
+      box-shadow:
+        0 2px 6px rgba(15, 23, 42, 0.04);
+    }
+
+
+    /*
+      Heading displayed at the top
+      of each card.
+    */
+    .section-title {
+      margin-bottom: 8px;
+
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+
+    /* =========================================
+       Labels and Values
+       ========================================= */
+
+    /*
+      Used for labels such as:
+      From
+      Subject
+      Body
+      Priority
+      Topic
+      Tone
+    */
+    .label {
+      margin-bottom: 2px;
+
+      font-size: 11px;
+      font-weight: 600;
+
+      color: #6b7280;
+    }
+
+
+    /*
+      Used for values such as the sender
+      and email subject.
+    */
+    .value {
+      font-size: 13px;
+      font-weight: 650;
+
+      color: #1f2937;
+    }
+
+
+    /* =========================================
+       Current Email
+       ========================================= */
+
+    /*
+      Adds spacing between the different
+      pieces of email information.
+    */
+    .email-field {
+      margin-bottom: 10px;
+    }
+
+
+    /*
+      Displays the body of the received email
+      inside its own readable box.
+    */
+    .email-body {
+      padding: 9px;
+
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+
+      background: #f9fafb;
+
+      font-size: 12px;
+      line-height: 1.45;
+
+      color: #374151;
+
+      /*
+        Keeps paragraph spacing and line breaks
+        inside the email body.
+      */
+      white-space: pre-line;
+    }
+
+
+    /*
+      Places Priority and Topic next
+      to each other.
+    */
+    .email-meta {
+      display: flex;
+
+      gap: 18px;
+
+      margin-top: 10px;
+    }
+
+
+    /*
+      Individual Priority or Topic section.
+    */
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+
+      gap: 4px;
+    }
+
+
+    /* =========================================
+       Priority and Topic Badges
+       ========================================= */
+
+    /*
+      Shared badge styling.
+    */
+    .badge {
+      padding: 4px 8px;
+
+      border-radius: 999px;
+
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+
+    /*
+      High-priority email badge.
+    */
+    .priority {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+
+    /*
+      Email topic/category badge.
+    */
+    .category {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
+
+    /* =========================================
+       AI Summary
+       ========================================= */
+
+    .summary {
+      margin: 0;
+
+      font-size: 13px;
+
+      line-height: 1.45;
+
+      color: #374151;
+    }
+
+
+    /* =========================================
+       Suggested Reply Text Area
+       ========================================= */
+
+    textarea {
+      width: 100%;
+
+      min-height: 95px;
+      max-height: 160px;
+
+      resize: vertical;
+
+      padding: 9px;
+
+      border: 1px solid #d1d5db;
+      border-radius: 9px;
+
+      font-family: inherit;
+      font-size: 13px;
+
+      line-height: 1.45;
+
+      background: white;
+      color: #111827;
+
+      outline: none;
+
+      transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+    }
+
+
+    /*
+      Adds a blue border when the user
+      clicks inside the reply box.
+    */
+    textarea:focus {
+      border-color: #2563eb;
+
+      box-shadow:
+        0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+
+    /* =========================================
+       Tone Selector
+       ========================================= */
+
+    .tone-row {
+      margin-top: 9px;
+    }
+
+
+    select {
+      width: 100%;
+
+      padding: 8px 9px;
+
+      border: 1px solid #d1d5db;
+      border-radius: 9px;
+
+      background: white;
+
+      font-family: inherit;
+      font-size: 13px;
+
+      cursor: pointer;
+
+      outline: none;
+    }
+
+
+    select:focus {
+      border-color: #2563eb;
+
+      box-shadow:
+        0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+
+    /* =========================================
+       General Button Styling
+       ========================================= */
+
+    button {
+      border: none;
+
+      border-radius: 9px;
+
+      font-family: inherit;
+
+      font-size: 12px;
+      font-weight: 700;
+
+      cursor: pointer;
+
+      transition:
+        transform 0.15s ease,
+        background 0.15s ease;
+    }
+
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+
+    button:active {
+      transform: translateY(0);
+    }
+
+
+    /* =========================================
+       Voice Controls
+       ========================================= */
+
+    .voice-row {
+      display: flex;
+
+      gap: 7px;
+
+      margin-top: 9px;
+    }
+
+
+    .voice-button {
+      flex: 1;
+
+      padding: 9px;
+
+      background: #f3f4f6;
+      color: #1f2937;
+    }
+
+
+    .voice-button:hover {
+      background: #e5e7eb;
+    }
+
+
+    /* =========================================
+       Utility Controls
+       ========================================= */
+
+    .utility-row {
+      display: flex;
+
+      gap: 7px;
+
+      margin-top: 7px;
+    }
+
+
+    .utility-button {
+      flex: 1;
+
+      padding: 8px;
+
+      background: #eef2f7;
+      color: #374151;
+    }
+
+
+    .utility-button:hover {
+      background: #e2e8f0;
+    }
+
+
+    /* =========================================
+       Regenerate Reply Button
+       ========================================= */
+
+    .regenerate-button {
+      width: 100%;
+
+      margin-top: 8px;
+
+      padding: 10px;
+
+      background: #111827;
+      color: white;
+    }
+
+
+    .regenerate-button:hover {
+      background: #1f2937;
+    }
+
+
+    /* =========================================
+       Human Review Controls
+       ========================================= */
+
+    .review-row {
+      display: flex;
+
+      gap: 7px;
+
+      margin-top: 8px;
+    }
+
+
+    /*
+      Edit button.
+    */
+    .edit-button {
+      flex: 1;
+
+      padding: 10px;
+
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+
+    /*
+      Approve button.
+    */
+    .approve-button {
+      flex: 1;
+
+      padding: 10px;
+
+      background: #2563eb;
+      color: white;
+    }
+
+
+    .approve-button:hover {
+      background: #1d4ed8;
+    }
+
+
+    /* =========================================
+       Feedback Messages
+       ========================================= */
+
+    /*
+      Hidden by default.
+      JavaScript displays this after
+      the user performs an action.
+    */
+    .feedback {
+      display: none;
+
+      margin-top: 8px;
+
+      padding: 8px 9px;
+
+      border-radius: 8px;
+
+      font-size: 11px;
+
+      line-height: 1.3;
+    }
+
+
+    .feedback.show {
+      display: block;
+    }
+
+
+    /*
+      Green feedback message.
+    */
+    .feedback.success {
+      background: #ecfdf5;
+      color: #047857;
+    }
+
+
+    /*
+      Blue information message.
+    */
+    .feedback.info {
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+
+    /* =========================================
+       Footer
+       ========================================= */
+
+    .footer {
+      margin-top: 4px;
+
+      text-align: center;
+
+      font-size: 10px;
+
+      color: #9ca3af;
+    }
+
+  </style>
+
+
+  <!--
+    Vite reads this TypeScript source file.
+
+    When npm run build is executed,
+    Vite generates dist/popup.js.
+  -->
+  <script
+    type="module"
+    src="/src/popup.ts"
+  ></script>
+
+</head>
+
+
+<body>
+
+  <div class="container">
+
+
+    <!-- =========================================
+         MedMailGenie Branding
+         ========================================= -->
+
+    <div class="brand-header">
+
+      <img
+        src="/assets/medmailgenie.png"
+        alt="MedMailGenie"
+        class="brand-logo"
+      />
+
+    </div>
+
+
+    <!-- =========================================
+         AI Assistant Status
+         ========================================= -->
+
+    <div class="status-banner">
+
+      <span class="status-dot"></span>
+
+      <span>
+        AI Assistant Ready
+      </span>
+
+    </div>
+
+
+    <!-- =========================================
+         Current Email
+         ========================================= -->
+
+    <div class="card">
+
+      <div class="section-title">
+        Current Email
+      </div>
+
+
+      <!-- Sender -->
+
+      <div class="email-field">
+
+        <div class="label">
+          From
+        </div>
+
+        <div class="value">
+          Sarah Johnson
+        </div>
+
+      </div>
+
+
+      <!-- Subject -->
+
+      <div class="email-field">
+
+        <div class="label">
+          Subject
+        </div>
+
+        <div class="value">
+          Project Meeting Request
+        </div>
+
+      </div>
+
+
+      <!-- Email Body -->
+
+      <div class="email-field">
+
+        <div class="label">
+          Body
+        </div>
+
+        <div class="email-body">
+Hi,
+
+I wanted to see if you are available next Tuesday for a meeting to discuss the current progress of the project and the tasks we need to complete over the next few weeks.
+
+Please let me know what time works best for you.
+
+Thanks,
+Sarah
+        </div>
+
+      </div>
+
+
+      <!-- Priority and Topic -->
+
+      <div class="email-meta">
+
+
+        <!-- Priority -->
+
+        <div class="meta-item">
+
+          <div class="label">
+            Priority
+          </div>
+
+          <span class="badge priority">
+            High
+          </span>
+
+        </div>
+
+
+        <!-- Topic -->
+
+        <div class="meta-item">
+
+          <div class="label">
+            Topic
+          </div>
+
+          <span class="badge category">
+            Meeting Request
+          </span>
+
+        </div>
+
+
+      </div>
+
+    </div>
+
+
+    <!-- =========================================
+         AI Summary
+         ========================================= -->
+
+    <div class="card">
+
+      <div class="section-title">
+        AI Summary
+      </div>
+
+
+      <p class="summary">
+        Sarah would like to organise a meeting next Tuesday
+        to discuss the progress of the project and upcoming tasks.
+      </p>
+
+    </div>
+
+
+    <!-- =========================================
+         Suggested Reply
+         ========================================= -->
+
+    <div class="card">
+
+
+      <div class="section-title">
+        Suggested Reply
+      </div>
+
+
+      <!--
+        Editable AI-generated suggested response.
+      -->
+
+      <textarea id="replyBox">Hi Sarah,
+
+Thanks for your email. Tuesday works well for me. Please let me know what time suits you best.
+
+Kind regards,</textarea>
+
+
+      <!-- =====================================
+           Tone Selection
+           ===================================== -->
+
+      <div class="tone-row">
+
+        <div class="label">
+          Tone
+        </div>
+
+
+        <select id="toneSelect">
+
+          <option value="professional">
+            Professional
+          </option>
+
+          <option value="friendly">
+            Friendly
+          </option>
+
+          <option value="concise">
+            Concise
+          </option>
+
+          <option value="formal">
+            Formal
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <!-- =====================================
+           Voice Controls
+           ===================================== -->
+
+      <div class="voice-row">
+
+
+        <!--
+          Future speech-to-text functionality.
+        -->
+
+        <button
+          class="voice-button"
+          id="voiceBtn"
+        >
+          🎤 Voice
+        </button>
+
+
+        <!--
+          Uses text-to-speech to read
+          the suggested response aloud.
+        -->
+
+        <button
+          class="voice-button"
+          id="readBtn"
+        >
+          🔊 Read Aloud
+        </button>
+
+
+      </div>
+
+
+      <!-- =====================================
+           Utility Controls
+           ===================================== -->
+
+      <div class="utility-row">
+
+
+        <!-- Copy suggested reply -->
+
+        <button
+          class="utility-button"
+          id="copyBtn"
+        >
+          📋 Copy Reply
+        </button>
+
+
+        <!-- Clear suggested reply -->
+
+        <button
+          class="utility-button"
+          id="clearBtn"
+        >
+          Clear
+        </button>
+
+
+      </div>
+
+
+      <!-- =====================================
+           Regenerate Suggested Reply
+           ===================================== -->
+
+      <button
+        class="regenerate-button"
+        id="regenerateBtn"
+      >
+        ↻ Regenerate Reply
+      </button>
+
+
+      <!-- =====================================
+           Human-in-the-loop Review Controls
+           ===================================== -->
+
+      <div class="review-row">
+
+
+        <!-- Edit response -->
+
+        <button
+          class="edit-button"
+          id="editBtn"
+        >
+          ✏️ Edit
+        </button>
+
+
+        <!-- Approve response -->
+
+        <button
+          class="approve-button"
+          id="approveBtn"
+        >
+          ✓ Approve
+        </button>
+
+
+      </div>
+
+
+      <!--
+        Feedback messages appear here after
+        the user performs an action.
+      -->
+
+      <div
+        class="feedback"
+        id="feedbackMessage"
+      ></div>
+
+
+    </div>
+
+
+    <!-- =========================================
+         Footer
+         ========================================= -->
+
+    <div class="footer">
+      Review AI-generated content before sending.
+    </div>
+
+
+  </div>
+
 </body>
+
 </html>
