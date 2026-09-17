@@ -344,7 +344,6 @@ toneSelect?.addEventListener("change", () => {
 
 });
 
-
 // --------------------------------------------------
 // Voice button
 // --------------------------------------------------
@@ -352,15 +351,161 @@ toneSelect?.addEventListener("change", () => {
 voiceBtn?.addEventListener("click", () => {
 
   /*
-    Placeholder for future speech-to-text.
+    Find the currently active tab.
   */
-  showFeedback(
-    "Voice input will be connected in a later stage.",
-    "info"
+  chrome.tabs.query(
+    {
+      active: true,
+      currentWindow: true
+    },
+    (tabs) => {
+
+      const tab = tabs[0];
+      console.log("POPUP TAB:", tab);
+
+      /*
+        Make sure a tab is available.
+      */
+      if (!tab?.id) {
+
+        showFeedback(
+          "Could not find the current tab.",
+          "info"
+        );
+
+        return;
+      }
+
+
+      /*
+        Ask content.ts to start
+        speech recognition.
+      */
+chrome.scripting.executeScript(
+  {
+    target: { tabId: tab.id },
+    files: ["content.js"]
+  },
+  () => {
+
+    if (chrome.runtime.lastError) {
+
+      console.log(
+        "Could not inject content script:",
+        chrome.runtime.lastError.message
+      );
+
+      showFeedback(
+        "Could not access this page.",
+        "info"
+      );
+
+      return;
+    }
+
+
+    chrome.tabs.sendMessage(
+      tab.id!,
+      {
+        type: "START_SPEECH_RECOGNITION"
+      },
+      (response) => {
+
+        if (chrome.runtime.lastError) {
+
+          console.log(
+            "Could not communicate with content script:",
+            chrome.runtime.lastError.message
+          );
+
+          showFeedback(
+            "Could not start voice input.",
+            "info"
+          );
+
+          return;
+        }
+
+
+        if (response?.success) {
+
+          showFeedback(
+            "Listening... Speak now.",
+            "info"
+          );
+
+        }
+
+      }
+    );
+
+  }
+);
+
+    }
   );
 
 });
 
+
+// --------------------------------------------------
+// Receive speech-to-text result
+// --------------------------------------------------
+
+chrome.runtime.onMessage.addListener((message) => {
+
+  /*
+    Receive the transcript from content.ts.
+  */
+  if (message.type === "SPEECH_RESULT") {
+
+    console.log(
+      "Received transcript:",
+      message.transcript
+    );
+
+
+    /*
+      Put the transcript into
+      the suggested reply box.
+    */
+    if (replyBox) {
+
+      replyBox.value =
+        message.transcript;
+
+      resetApproval();
+
+    }
+
+
+    showFeedback(
+      "Voice input finished.",
+      "success"
+    );
+
+  }
+
+
+  /*
+    Receive speech recognition errors.
+  */
+  if (message.type === "SPEECH_ERROR") {
+
+    console.log(
+      "Received speech error:",
+      message.error
+    );
+
+
+    showFeedback(
+      `Speech error: ${message.error}`,
+      "info"
+    );
+
+  }
+
+});
 
 // --------------------------------------------------
 // Read Aloud button

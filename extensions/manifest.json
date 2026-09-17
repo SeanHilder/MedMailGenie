@@ -4,7 +4,11 @@
   "version": "1.0.0",
   "description": "Intelligent email assistant for medical professionals",
   "permissions": [
-    "storage"
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+  "<all_urls>"
   ],
   "action": {
     "default_popup": "popup.html"
@@ -15,7 +19,8 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://mail.google.com/*"],
+      "_matches_comment": ["https://mail.google.com/*"],
+      "matches": ["<all_urls>"],
       "js": ["content.js"]
     }
   ]
