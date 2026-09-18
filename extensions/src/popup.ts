@@ -1,6 +1,10 @@
 const BACKEND_URL = "http://127.0.0.1:8000";
-const currentEmailSubject = "Test Subject";
-const currentEmailBody = "Test email body content.";
+
+// These are placeholder fallback values, used only if reading the
+// real email from Gmail fails (e.g. no email open, content script
+// couldn't inject, or the page isn't Gmail at all).
+let currentEmailSubject = "Test Subject";
+let currentEmailBody = "Test email body content.";
 
 // Confirms that the MedMailGenie popup script loaded correctly
 console.log("MedMailGenie popup loaded");
@@ -94,7 +98,6 @@ async function loadSummary() {
 
 }
 
-loadSummary();
 
 
 // --------------------------------------------------
@@ -137,7 +140,6 @@ async function loadPriority() {
 
 }
 
-loadPriority();
 
 
 // --------------------------------------------------
@@ -196,7 +198,104 @@ async function loadTasks() {
 
 }
 
-loadTasks();
+
+// --------------------------------------------------
+// Read the currently open Gmail email, then load
+// Summary / Priority / Tasks using its real content
+// --------------------------------------------------
+
+function getCurrentEmailFromGmail(): Promise<void> {
+
+  return new Promise((resolve) => {
+
+    chrome.tabs.query(
+      { active: true, currentWindow: true },
+      (tabs) => {
+
+        const tab = tabs[0];
+
+        if (!tab?.id) {
+          resolve();
+          return;
+        }
+
+        chrome.scripting.executeScript(
+          {
+            target: { tabId: tab.id },
+            files: ["content.js"]
+          },
+          () => {
+
+            if (chrome.runtime.lastError) {
+
+              console.log(
+                "Could not inject content script:",
+                chrome.runtime.lastError.message
+              );
+
+              resolve();
+              return;
+
+            }
+
+            chrome.tabs.sendMessage(
+              tab.id!,
+              { type: "GET_CURRENT_EMAIL" },
+              (response) => {
+
+                if (chrome.runtime.lastError) {
+
+                  console.log(
+                    "Could not read current email:",
+                    chrome.runtime.lastError.message
+                  );
+
+                  resolve();
+                  return;
+
+                }
+
+                if (response?.success) {
+
+                  currentEmailSubject = response.subject;
+                  currentEmailBody = response.body;
+
+                } else {
+
+                  console.log(
+                    "No email found, using placeholder values:",
+                    response?.error
+                  );
+
+                }
+
+                resolve();
+
+              }
+            );
+
+          }
+        );
+
+      }
+    );
+
+  });
+
+}
+
+/*
+  Read the real email first, THEN load Summary/Priority/Tasks using
+  whatever subject/body was found (real email, or the fallback
+  placeholder values if reading failed).
+*/
+getCurrentEmailFromGmail().then(() => {
+
+  loadSummary();
+  loadPriority();
+  loadTasks();
+
+});
 
 
 // --------------------------------------------------
