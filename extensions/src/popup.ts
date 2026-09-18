@@ -1,3 +1,7 @@
+const BACKEND_URL = "http://127.0.0.1:8000";
+const currentEmailSubject = "Test Subject";
+const currentEmailBody = "Test email body content.";
+
 // Confirms that the MedMailGenie popup script loaded correctly
 console.log("MedMailGenie popup loaded");
 
@@ -13,6 +17,10 @@ const replyBox =
 // Tone selection dropdown
 const toneSelect =
   document.getElementById("toneSelect") as HTMLSelectElement | null;
+
+// AI Summary text element
+const summaryText =
+  document.getElementById("summaryText");
 
 // Main buttons
 const editBtn =
@@ -43,6 +51,50 @@ const submitBtn =
 // Feedback message area
 const feedbackMessage =
   document.getElementById("feedbackMessage");
+
+
+// --------------------------------------------------
+// Load AI Summary on popup open
+// --------------------------------------------------
+
+async function loadSummary() {
+
+  if (!summaryText) {
+    return;
+  }
+
+  summaryText.textContent = "Loading summary...";
+
+  try {
+
+    const response = await fetch(`${BACKEND_URL}/summarize/email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject: currentEmailSubject,
+        body: currentEmailBody,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    summaryText.textContent = data.summary;
+
+  } catch (error) {
+
+    console.error("Failed to load summary:", error);
+
+    summaryText.textContent = "Could not load summary.";
+
+  }
+
+}
+
+loadSummary();
 
 
 // --------------------------------------------------
@@ -276,38 +328,45 @@ submitBtn?.addEventListener("click", () => {
 // Regenerate Reply button
 // --------------------------------------------------
 
-regenerateBtn?.addEventListener("click", () => {
+regenerateBtn?.addEventListener("click", async () => {
 
-  /*
-    Any regenerated reply is a new response,
-    so previous approval must be removed.
-  */
   resetApproval();
 
+  showFeedback("Generating reply...", "info");
 
-  /*
-    Temporary prototype reply.
+  const selectedTone = toneSelect?.value || "professional";
 
-    Later this will call your backend / LLM.
-  */
-  if (replyBox) {
+  try {
 
-    replyBox.value =
-`Hi Sarah,
+    const response = await fetch(`${BACKEND_URL}/draft/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject: currentEmailSubject,
+        body: currentEmailBody,
+        tone: selectedTone,
+      }),
+    });
 
-Thank you for getting in touch. Tuesday works well for me.
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
 
-Please let me know your preferred meeting time and I will confirm my availability.
+    const data = await response.json();
 
-Kind regards,`;
+    if (replyBox) {
+      replyBox.value = data.draft_reply;
+    }
+
+    showFeedback("A new suggested reply has been generated.", "success");
+
+  } catch (error) {
+
+    console.error("Failed to generate reply:", error);
+
+    showFeedback("Could not generate reply. Please try again.", "info");
 
   }
-
-
-  showFeedback(
-    "A new suggested reply has been generated.",
-    "success"
-  );
 
 });
 
