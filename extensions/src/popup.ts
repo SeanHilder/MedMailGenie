@@ -1,8 +1,5 @@
 const BACKEND_URL = "http://127.0.0.1:8000";
 
-// These are placeholder fallback values, used only if reading the
-// real email from Gmail fails (e.g. no email open, content script
-// couldn't inject, or the page isn't Gmail at all).
 let currentEmailSubject = "Test Subject";
 let currentEmailBody = "Test email body content.";
 
@@ -294,6 +291,7 @@ getCurrentEmailFromGmail().then(() => {
   loadSummary();
   loadPriority();
   loadTasks();
+  generateDraftReply(false);
 
 });
 
@@ -529,11 +527,11 @@ submitBtn?.addEventListener("click", () => {
 // Regenerate Reply button
 // --------------------------------------------------
 
-regenerateBtn?.addEventListener("click", async () => {
+async function generateDraftReply(showFeedbackMessages: boolean = true) {
 
-  resetApproval();
-
-  showFeedback("Generating reply...", "info");
+  if (showFeedbackMessages) {
+    showFeedback("Generating reply...", "info");
+  }
 
   const selectedTone = toneSelect?.value || "professional";
 
@@ -559,15 +557,27 @@ regenerateBtn?.addEventListener("click", async () => {
       replyBox.value = data.draft_reply;
     }
 
-    showFeedback("A new suggested reply has been generated.", "success");
+    if (showFeedbackMessages) {
+      showFeedback("A new suggested reply has been generated.", "success");
+    }
 
   } catch (error) {
 
     console.error("Failed to generate reply:", error);
 
-    showFeedback("Could not generate reply. Please try again.", "info");
+    if (showFeedbackMessages) {
+      showFeedback("Could not generate reply. Please try again.", "info");
+    }
 
   }
+
+}
+
+regenerateBtn?.addEventListener("click", async () => {
+
+  resetApproval();
+
+  await generateDraftReply(true);
 
 });
 
