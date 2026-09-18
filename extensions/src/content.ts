@@ -132,3 +132,57 @@ chrome.runtime.onMessage.addListener(
 
   }
 );
+
+
+// --------------------------------------------------
+// Read current Gmail email (DEBUG VERSION with logging)
+// --------------------------------------------------
+
+chrome.runtime.onMessage.addListener(
+  (message, sender, sendResponse) => {
+
+    if (message.type !== "GET_CURRENT_EMAIL") {
+      return;
+    }
+
+    console.log("[MedMailGenie DEBUG] GET_CURRENT_EMAIL received");
+
+    const subjectElement =
+      document.querySelector("h2.hP");
+
+    const bodyElement =
+      document.querySelector("div.a3s");
+
+    console.log("[MedMailGenie DEBUG] subjectElement:", subjectElement);
+    console.log("[MedMailGenie DEBUG] bodyElement:", bodyElement);
+
+    const subject =
+      subjectElement?.textContent?.trim() || "";
+
+    const body =
+      bodyElement?.textContent?.trim() || "";
+
+    console.log("[MedMailGenie DEBUG] subject text:", subject);
+    console.log("[MedMailGenie DEBUG] body text:", body);
+
+
+    if (!subject && !body) {
+
+      sendResponse({
+        success: false,
+        error: "No open email found. Please open an email first."
+      });
+
+      return;
+
+    }
+
+
+    sendResponse({
+      success: true,
+      subject: subject,
+      body: body
+    });
+
+  }
+);
