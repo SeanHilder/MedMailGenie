@@ -98,6 +98,108 @@ loadSummary();
 
 
 // --------------------------------------------------
+// Load Priority badge on popup open
+// --------------------------------------------------
+
+const priorityBadge =
+  document.querySelector(".badge.priority");
+
+async function loadPriority() {
+
+  if (!priorityBadge) {
+    return;
+  }
+
+  try {
+
+    const response = await fetch(`${BACKEND_URL}/classify/priority`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject: currentEmailSubject,
+        body: currentEmailBody,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    priorityBadge.textContent = data.priority;
+
+  } catch (error) {
+
+    console.error("Failed to load priority:", error);
+
+  }
+
+}
+
+loadPriority();
+
+
+// --------------------------------------------------
+// Load extracted tasks on popup open (R6)
+// --------------------------------------------------
+
+const tasksList =
+  document.getElementById("tasksList");
+
+async function loadTasks() {
+
+  if (!tasksList) {
+    return;
+  }
+
+  tasksList.textContent = "Loading tasks...";
+
+  try {
+
+    const response = await fetch(`${BACKEND_URL}/extract/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject: currentEmailSubject,
+        body: currentEmailBody,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    const allItems = [
+      ...data.tasks.map((t: string) => `Task: ${t}`),
+      ...data.deadlines.map((d: string) => `Deadline: ${d}`),
+      ...data.meeting_times.map((m: string) => `Meeting: ${m}`),
+    ];
+
+    if (allItems.length === 0) {
+      tasksList.textContent = "No tasks, deadlines, or meetings found.";
+    } else {
+      tasksList.innerHTML = allItems
+        .map((item) => `<li>${item}</li>`)
+        .join("");
+    }
+
+  } catch (error) {
+
+    console.error("Failed to load tasks:", error);
+
+    tasksList.textContent = "Could not load tasks.";
+
+  }
+
+}
+
+loadTasks();
+
+
+// --------------------------------------------------
 // Approval state
 // --------------------------------------------------
 

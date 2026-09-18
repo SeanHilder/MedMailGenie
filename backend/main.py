@@ -5,11 +5,11 @@ FastAPI backend for MedMail Genie.
 Implements:
 - R7: Summarisation endpoint
 - R2, R5: Draft reply generation endpoint (with tone adjustment)
+- R1: Priority classification endpoint
+- R6: Task / calendar extraction endpoint
 
-Other modules (classification, priority detection, task extraction)
-should be added here by the respective team members using the same
-pattern: define request/response schemas, implement the logic
-function, then add an @app.post(...) endpoint.
+Still to add:
+- R1: Category classification (James)
 
 Setup:
     pip install -r requirements.txt
@@ -25,6 +25,7 @@ Then test at http://127.0.0.1:8000/docs (FastAPI's auto-generated API docs)
 """
 
 import os
+import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -39,8 +40,6 @@ model = genai.GenerativeModel(MODEL_NAME)
 
 app = FastAPI(title="MedMail Genie API")
 
-# Allow the frontend (Chrome extension) to call this API during development.
-# Restrict allow_origins to the actual extension origin before deployment.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -78,6 +77,16 @@ class DraftInput(BaseModel):
 
 class DraftResponse(BaseModel):
     draft_reply: str
+
+
+class PriorityResponse(BaseModel):
+    priority: str  # "High" | "Medium" | "Low"
+
+
+class TaskExtractionResponse(BaseModel):
+    tasks: list[str]
+    deadlines: list[str]
+    meeting_times: list[str]
 
 
 # --- Summarisation logic (R7) ---
@@ -129,6 +138,76 @@ Body: {body}
     return response.text.strip()
 
 
+# --- Priority classification logic (R1) ---
+
+def classify_priority(subject: str, body: str) -> str:
+    prompt = f"""
+Classify the priority/urgency of the following email as exactly one of:
+High, Medium, or Low.
+
+Guidance:
+- High: urgent issues, deadlines within a day or two, safety/compliance
+  issues, stock shortages, system outages, anything requiring immediate
+  action.
+- Medium: normal business requests, meeting requests, routine follow-ups
+  with a deadline further out.
+- Low: FYI notifications, casual/personal messages, no action required.
+
+Return ONLY the single word: High, Medium, or Low. No punctuation, no
+explanation.
+
+Subject: {subject}
+Body: {body}
+"""
+    response = model.generate_content(prompt)
+    result = response.text.strip()
+
+    for level in ["High", "Medium", "Low"]:
+        if level.lower() in result.lower():
+            return level
+
+    return "Medium"
+
+
+# --- Task / calendar extraction logic (R6) ---
+
+def extract_tasks(subject: str, body: str) -> dict:
+    prompt = f"""
+Extract structured information from the following email. Return ONLY a
+valid JSON object (no markdown, no extra text) with these exact fields:
+
+- "tasks": a list of action items or to-dos mentioned in the email.
+  Each item should be a short string. Empty list if none.
+- "deadlines": a list of any deadlines or due dates mentioned, as short
+  strings (e.g. "Friday", "by end of week", "17 October"). Empty list
+  if none.
+- "meeting_times": a list of any meeting times or scheduled events
+  mentioned, as short strings. Empty list if none.
+
+Do not invent information that isn't in the email.
+
+Subject: {subject}
+Body: {body}
+"""
+    response = model.generate_content(prompt)
+    text = response.text.strip()
+
+    if text.startswith("```"):
+        text = text.strip("`")
+        text = text.replace("json", "", 1).strip()
+
+    try:
+        result = json.loads(text)
+    except json.JSONDecodeError:
+        result = {"tasks": [], "deadlines": [], "meeting_times": []}
+
+    result.setdefault("tasks", [])
+    result.setdefault("deadlines", [])
+    result.setdefault("meeting_times", [])
+
+    return result
+
+
 # --- API endpoints ---
 
 @app.get("/")
@@ -168,11 +247,24 @@ def generate_draft(draft_input: DraftInput):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# --- Placeholder sections for teammates to fill in ---
-# Each teammate should follow the same pattern: define request/response
-# schemas above, implement the logic function, then add an @app.post(...)
-# endpoint here.
+@app.post("/classify/priority", response_model=PriorityResponse)
+def classify_priority_endpoint(email: EmailInput):
+    """Classify an email's priority as High, Medium, or Low."""
+    try:
+        priority = classify_priority(email.subject, email.body)
+        return PriorityResponse(priority=priority)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# TODO (Martin): Category classification endpoint (R1)
-# TODO (Martin): Priority detection endpoint (R1)
-# TODO (Martin): Task/calendar extraction endpoint (R6)
+
+@app.post("/extract/tasks", response_model=TaskExtractionResponse)
+def extract_tasks_endpoint(email: EmailInput):
+    """Extract tasks, deadlines, and meeting times from an email."""
+    try:
+        result = extract_tasks(email.subject, email.body)
+        return TaskExtractionResponse(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Placeholder sections for teammates to fill in ---
