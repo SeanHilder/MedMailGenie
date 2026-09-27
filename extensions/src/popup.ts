@@ -23,6 +23,15 @@ const toneSelect =
 const summaryText =
   document.getElementById("summaryText");
 
+const emailSender =
+document.getElementById("emailSender");
+
+const emailSubject =
+document.getElementById("emailSubject");
+
+const emailBody =
+document.getElementById("emailBody");
+
 // Main buttons
 const editBtn =
   document.getElementById("editBtn");
@@ -256,6 +265,18 @@ function getCurrentEmailFromGmail(): Promise<void> {
 
                   currentEmailSubject = response.subject;
                   currentEmailBody = response.body;
+
+                  if (emailSubject) {
+                    emailSubject.textContent = currentEmailSubject;
+                  }
+
+                  if (emailBody) {
+                    emailBody.textContent = currentEmailBody;
+                  }
+
+                  if (emailSender) {
+                    emailSender.textContent = "Gmail";
+                  }
 
                 } else {
 
