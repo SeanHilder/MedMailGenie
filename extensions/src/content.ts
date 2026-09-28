@@ -162,6 +162,15 @@ chrome.runtime.onMessage.addListener(
     const body =
       bodyElement?.textContent?.trim() || "";
 
+    const senderElement =
+      document.querySelector(".gD[email]");
+
+    const senderEmail =
+      senderElement?.getAttribute("email") || "";
+
+    const senderName =
+      senderElement?.textContent?.trim() || "";
+
     console.log("[MedMailGenie DEBUG] subject text:", subject);
     console.log("[MedMailGenie DEBUG] body text:", body);
 
@@ -181,7 +190,9 @@ chrome.runtime.onMessage.addListener(
     sendResponse({
       success: true,
       subject: subject,
-      body: body
+      body: body,
+      senderEmail: senderEmail,
+      senderName: senderName
     });
 
   }

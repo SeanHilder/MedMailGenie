@@ -275,7 +275,10 @@ function getCurrentEmailFromGmail(): Promise<void> {
                   }
 
                   if (emailSender) {
-                    emailSender.textContent = "Gmail";
+                    emailSender.textContent =
+                      response.senderName
+                        ? `${response.senderName} <${response.senderEmail}>`
+                        : response.senderEmail;
                   }
 
                 } else {
