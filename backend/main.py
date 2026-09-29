@@ -6,7 +6,8 @@ Implements:
 - R7: Summarisation endpoint
 - R2, R5: Draft reply generation endpoint (with tone adjustment)
 - R1: Priority classification endpoint
-- R6: Task / calendar extraction endpoint
+- R6: Task / calendar extraction endpoint (now includes structured
+      calendar events with real dates, for "Add to Google Calendar")
 
 Still to add:
 - R1: Category classification (James)
@@ -26,6 +27,7 @@ Then test at http://127.0.0.1:8000/docs (FastAPI's auto-generated API docs)
 
 import os
 import json
+from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -83,10 +85,17 @@ class PriorityResponse(BaseModel):
     priority: str  # "High" | "Medium" | "Low"
 
 
+class CalendarEvent(BaseModel):
+    title: str
+    start: str  # ISO 8601, e.g. "2026-10-06T10:00:00"
+    end: str    # ISO 8601
+
+
 class TaskExtractionResponse(BaseModel):
     tasks: list[str]
     deadlines: list[str]
     meeting_times: list[str]
+    calendar_events: list[CalendarEvent]
 
 
 # --- Summarisation logic (R7) ---
@@ -172,9 +181,12 @@ Body: {body}
 # --- Task / calendar extraction logic (R6) ---
 
 def extract_tasks(subject: str, body: str) -> dict:
+    today_str = datetime.now().strftime("%Y-%m-%d (%A)")
+
     prompt = f"""
-Extract structured information from the following email. Return ONLY a
-valid JSON object (no markdown, no extra text) with these exact fields:
+Today's date is {today_str}. Extract structured information from the
+following email. Return ONLY a valid JSON object (no markdown, no extra
+text) with these exact fields:
 
 - "tasks": a list of action items or to-dos mentioned in the email.
   Each item should be a short string. Empty list if none.
@@ -182,7 +194,18 @@ valid JSON object (no markdown, no extra text) with these exact fields:
   strings (e.g. "Friday", "by end of week", "17 October"). Empty list
   if none.
 - "meeting_times": a list of any meeting times or scheduled events
-  mentioned, as short strings. Empty list if none.
+  mentioned, as short human-readable strings. Empty list if none.
+- "calendar_events": a list of objects for any meetings or events that
+  have a clearly identifiable date/time, resolved relative to today's
+  date above. Each object must have:
+    - "title": a short descriptive title for the event
+    - "start": an ISO 8601 datetime string, e.g. "2026-10-06T10:00:00"
+    - "end": an ISO 8601 datetime string. If no duration is mentioned,
+      assume 1 hour after the start time.
+  Only include events where you can confidently resolve a real date.
+  If a time is mentioned but no clear date can be resolved, leave it
+  out of "calendar_events" (it can still appear in "meeting_times").
+  Empty list if no resolvable events.
 
 Do not invent information that isn't in the email.
 
@@ -199,11 +222,15 @@ Body: {body}
     try:
         result = json.loads(text)
     except json.JSONDecodeError:
-        result = {"tasks": [], "deadlines": [], "meeting_times": []}
+        result = {
+            "tasks": [], "deadlines": [], "meeting_times": [],
+            "calendar_events": []
+        }
 
     result.setdefault("tasks", [])
     result.setdefault("deadlines", [])
     result.setdefault("meeting_times", [])
+    result.setdefault("calendar_events", [])
 
     return result
 
@@ -259,7 +286,10 @@ def classify_priority_endpoint(email: EmailInput):
 
 @app.post("/extract/tasks", response_model=TaskExtractionResponse)
 def extract_tasks_endpoint(email: EmailInput):
-    """Extract tasks, deadlines, and meeting times from an email."""
+    """
+    Extract tasks, deadlines, meeting times, and structured calendar
+    events (with resolvable dates) from an email.
+    """
     try:
         result = extract_tasks(email.subject, email.body)
         return TaskExtractionResponse(**result)
@@ -268,3 +298,5 @@ def extract_tasks_endpoint(email: EmailInput):
 
 
 # --- Placeholder sections for teammates to fill in ---
+
+# TODO (James): Category classification endpoint (R1)

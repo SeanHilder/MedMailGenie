@@ -1,5 +1,8 @@
 const BACKEND_URL = "http://127.0.0.1:8000";
 
+// These are placeholder fallback values, used only if reading the
+// real email from Gmail fails (e.g. no email open, content script
+// couldn't inject, or the page isn't Gmail at all).
 let currentEmailSubject = "Test Subject";
 let currentEmailBody = "Test email body content.";
 
@@ -22,15 +25,6 @@ const toneSelect =
 // AI Summary text element
 const summaryText =
   document.getElementById("summaryText");
-
-const emailSender =
-document.getElementById("emailSender");
-
-const emailSubject =
-document.getElementById("emailSubject");
-
-const emailBody =
-document.getElementById("emailBody");
 
 // Main buttons
 const editBtn =
@@ -155,6 +149,42 @@ async function loadPriority() {
 const tasksList =
   document.getElementById("tasksList");
 
+const calendarButtons =
+  document.getElementById("calendarButtons");
+
+
+/*
+  Builds a Google Calendar "quick add" link that pre-fills the event
+  title and time. Opening this link lets the user review and confirm
+  before it's actually added to their calendar - no OAuth/Calendar
+  API integration needed for this.
+*/
+function buildGoogleCalendarLink(
+  title: string,
+  startIso: string,
+  endIso: string
+): string {
+
+  // Google Calendar's render URL expects dates as YYYYMMDDTHHMMSS
+  // (no dashes, no colons). This assumes the datetime is already in
+  // the user's local time.
+  const formatForCalendar = (iso: string) =>
+    iso.replace(/[-:]/g, "").split(".")[0];
+
+  const start = formatForCalendar(startIso);
+  const end = formatForCalendar(endIso);
+
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: title,
+    dates: `${start}/${end}`,
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+
+}
+
+
 async function loadTasks() {
 
   if (!tasksList) {
@@ -162,6 +192,10 @@ async function loadTasks() {
   }
 
   tasksList.textContent = "Loading tasks...";
+
+  if (calendarButtons) {
+    calendarButtons.innerHTML = "";
+  }
 
   try {
 
@@ -192,6 +226,38 @@ async function loadTasks() {
       tasksList.innerHTML = allItems
         .map((item) => `<li>${item}</li>`)
         .join("");
+    }
+
+
+    /*
+      Render an "Add to Calendar" button for each event where the
+      backend could confidently resolve a real date/time.
+    */
+    if (calendarButtons && data.calendar_events?.length > 0) {
+
+      data.calendar_events.forEach((event: any) => {
+
+        const button = document.createElement("button");
+        button.className = "utility-button";
+        button.textContent = `📅 Add "${event.title}" to Calendar`;
+        button.style.width = "100%";
+
+        button.addEventListener("click", () => {
+
+          const link = buildGoogleCalendarLink(
+            event.title,
+            event.start,
+            event.end
+          );
+
+          chrome.tabs.create({ url: link });
+
+        });
+
+        calendarButtons.appendChild(button);
+
+      });
+
     }
 
   } catch (error) {
@@ -265,21 +331,6 @@ function getCurrentEmailFromGmail(): Promise<void> {
 
                   currentEmailSubject = response.subject;
                   currentEmailBody = response.body;
-
-                  if (emailSubject) {
-                    emailSubject.textContent = currentEmailSubject;
-                  }
-
-                  if (emailBody) {
-                    emailBody.textContent = currentEmailBody;
-                  }
-
-                  if (emailSender) {
-                    emailSender.textContent =
-                      response.senderName
-                        ? `${response.senderName} <${response.senderEmail}>`
-                        : response.senderEmail;
-                  }
 
                 } else {
 
