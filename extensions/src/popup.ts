@@ -1128,8 +1128,6 @@ async function loadTasks() {
 
 }
 
-
-
 // ==================================================
 // Generate Suggested Reply
 // ==================================================
@@ -1761,8 +1759,6 @@ toneSelect?.addEventListener(
   }
 );
 
-
-
 // ==================================================
 // Voice Button
 // ==================================================
@@ -1790,191 +1786,165 @@ voiceBtn?.addEventListener(
             "info"
           );
 
+          return;
+        }
+
+
+        // ==========================================
+        // Stop Listening
+        // ==========================================
+
+        if (isListening) {
+
+          showFeedback(
+            "Stopping voice input...",
+            "info"
+          );
+
+
+          chrome.tabs.sendMessage(
+            tab.id,
+            {
+              type:
+                "STOP_SPEECH_RECOGNITION"
+            },
+
+            (response) => {
+
+              if (
+                chrome.runtime.lastError
+              ) {
+
+                console.error(
+                  "Could not stop speech recognition:",
+                  chrome.runtime.lastError.message
+                );
+
+
+                setVoiceButtonListening(
+                  false
+                );
+
+
+                showFeedback(
+                  "Could not stop voice input.",
+                  "info"
+                );
+
+                return;
+              }
+
+
+              if (
+                response?.success
+              ) {
+
+                setVoiceButtonListening(
+                  false
+                );
+
+
+                showFeedback(
+                  "Voice input stopped.",
+                  "success"
+                );
+
+              }
+
+              else {
+
+                setVoiceButtonListening(
+                  false
+                );
+
+
+                showFeedback(
+                  response?.error ||
+                  "Voice input is not currently running.",
+                  "info"
+                );
+
+              }
+
+            }
+          );
+
 
           return;
         }
 
 
+        // ==========================================
+        // Start New Voice Session
+        // ==========================================
 
-        chrome.scripting.executeScript(
+        currentVoiceTranscript =
+          "";
+
+
+        chrome.tabs.sendMessage(
+          tab.id,
           {
-            target: {
-              tabId: tab.id
-            },
-
-            files: [
-              "content.js"
-            ]
+            type:
+              "START_SPEECH_RECOGNITION"
           },
 
-          () => {
+          (response) => {
 
             if (
               chrome.runtime.lastError
             ) {
 
               console.error(
-                "Could not inject content script:",
+                "Could not communicate with content script:",
                 chrome.runtime.lastError.message
               );
 
 
-              showFeedback(
-                "Could not access this page.",
-                "info"
+              setVoiceButtonListening(
+                false
               );
 
+
+              showFeedback(
+                "Could not start voice input. Reopen MedMail Genie and try again.",
+                "info"
+              );
 
               return;
             }
 
 
+            if (
+              response?.success
+            ) {
 
-            // ==========================================
-            // Stop Listening
-            // ==========================================
+              setVoiceButtonListening(
+                true
+              );
 
-            if (isListening) {
 
               showFeedback(
-                "Finishing voice input...",
+                "Listening... Speak your reply.",
                 "info"
               );
 
+            }
 
-              chrome.tabs.sendMessage(
-                tab.id!,
-                {
-                  type:
-                    "STOP_SPEECH_RECOGNITION"
-                },
+            else {
 
-                (response) => {
-
-                  if (
-                    chrome.runtime.lastError
-                  ) {
-
-                    console.error(
-                      "Could not stop speech recognition:",
-                      chrome.runtime.lastError.message
-                    );
-
-
-                    setVoiceButtonListening(
-                      false
-                    );
-
-
-                    showFeedback(
-                      "Could not stop voice input.",
-                      "info"
-                    );
-
-
-                    return;
-                  }
-
-
-                  if (!response?.success) {
-
-                    setVoiceButtonListening(
-                      false
-                    );
-
-
-                    showFeedback(
-                      response?.error ||
-                      "Voice input is not currently running.",
-                      "info"
-                    );
-
-                  }
-
-                }
+              setVoiceButtonListening(
+                false
               );
 
 
-              return;
+              showFeedback(
+                response?.error ||
+                "Could not start voice input.",
+                "info"
+              );
+
             }
-
-
-
-            // ==========================================
-            // Start New Voice Session
-            // ==========================================
-
-            currentVoiceTranscript =
-              "";
-
-
-            chrome.tabs.sendMessage(
-              tab.id!,
-              {
-                type:
-                  "START_SPEECH_RECOGNITION"
-              },
-
-              (response) => {
-
-                if (
-                  chrome.runtime.lastError
-                ) {
-
-                  console.error(
-                    "Could not communicate with content script:",
-                    chrome.runtime.lastError.message
-                  );
-
-
-                  setVoiceButtonListening(
-                    false
-                  );
-
-
-                  showFeedback(
-                    "Could not start voice input.",
-                    "info"
-                  );
-
-
-                  return;
-                }
-
-
-                if (
-                  response?.success
-                ) {
-
-                  setVoiceButtonListening(
-                    true
-                  );
-
-
-                  showFeedback(
-                    "Listening... Speak your reply.",
-                    "info"
-                  );
-
-                }
-
-                else {
-
-                  setVoiceButtonListening(
-                    false
-                  );
-
-
-                  showFeedback(
-                    response?.error ||
-                    "Could not start voice input.",
-                    "info"
-                  );
-
-                }
-
-              }
-            );
 
           }
         );
@@ -1984,8 +1954,6 @@ voiceBtn?.addEventListener(
 
   }
 );
-
-
 
 // ==================================================
 // Receive Speech Events
