@@ -2,301 +2,1043 @@
 main.py
 
 FastAPI backend for MedMail Genie.
+
 Implements:
-- R7: Summarisation endpoint
-- R2, R5: Draft reply generation endpoint (with tone adjustment)
-- R1: Priority classification endpoint
-- R6: Task / calendar extraction endpoint (now includes structured
-      calendar events with real dates, for "Add to Google Calendar")
-
-Still to add:
-- R1: Category classification (James)
-
-Setup:
-    pip install -r requirements.txt
-
-Before running:
-    Create a '.env' file in the backend/ folder with:
-        GOOGLE_API_KEY=your_key_here
+- R1: Email category classification
+- R1: Priority classification
+- R2: Draft reply generation
+- R5: Tone adjustment
+- R6: Task / calendar extraction
+- R7: Email summarisation
+- Voice transcript cleanup
 
 Run:
     uvicorn main:app --reload
 
-Then test at http://127.0.0.1:8000/docs (FastAPI's auto-generated API docs)
+FastAPI documentation:
+    http://127.0.0.1:8000/docs
 """
 
 import os
 import json
 from datetime import datetime
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+
 import google.generativeai as genai
 
+
+# ==================================================
+# Environment / Gemini Configuration
+# ==================================================
+
 load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-MODEL_NAME = "gemini-3.5-flash-lite"
-model = genai.GenerativeModel(MODEL_NAME)
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-app = FastAPI(title="MedMail Genie API")
+if not GOOGLE_API_KEY:
+    print(
+        "WARNING: GOOGLE_API_KEY was not found in the .env file."
+    )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+genai.configure(
+    api_key=GOOGLE_API_KEY
 )
 
 
-# --- Request/response schemas ---
+MODEL_NAME = "gemini-3.5-flash-lite"
+
+model = genai.GenerativeModel(
+    MODEL_NAME
+)
+
+
+
+# ==================================================
+# FastAPI Application
+# ==================================================
+
+app = FastAPI(
+    title="MedMail Genie API"
+)
+
+
+app.add_middleware(
+    CORSMiddleware,
+
+    allow_origins=[
+        "*"
+    ],
+
+    allow_methods=[
+        "*"
+    ],
+
+    allow_headers=[
+        "*"
+    ],
+)
+
+
+
+# ==================================================
+# Request / Response Schemas
+# ==================================================
+
+
+# --------------------------------------------------
+# Email Input
+# --------------------------------------------------
 
 class EmailInput(BaseModel):
+
     subject: str
+
     body: str
 
 
+
+# --------------------------------------------------
+# Summary
+# --------------------------------------------------
+
 class SummaryResponse(BaseModel):
+
     summary: str
 
 
+
+# --------------------------------------------------
+# Email Thread
+# --------------------------------------------------
+
 class ThreadMessage(BaseModel):
+
     sender: str = "unknown"
+
     subject: str = ""
+
     body: str = ""
 
 
+
 class ThreadInput(BaseModel):
+
     messages: list[ThreadMessage]
 
 
+
+# --------------------------------------------------
+# Draft Reply
+# --------------------------------------------------
+
 class DraftInput(BaseModel):
+
     subject: str
+
     body: str
+
     tone: str = "professional"
 
 
+
 class DraftResponse(BaseModel):
+
     draft_reply: str
 
 
-class PriorityResponse(BaseModel):
-    priority: str  # "High" | "Medium" | "Low"
 
+# --------------------------------------------------
+# Priority
+# --------------------------------------------------
+
+class PriorityResponse(BaseModel):
+
+    priority: str
+
+
+
+# --------------------------------------------------
+# Category
+# --------------------------------------------------
+
+class CategoryResponse(BaseModel):
+
+    category: str
+
+
+
+# --------------------------------------------------
+# Tasks / Calendar
+# --------------------------------------------------
 
 class CalendarEvent(BaseModel):
+
     title: str
-    start: str  # ISO 8601, e.g. "2026-10-06T10:00:00"
-    end: str    # ISO 8601
+
+    start: str
+
+    end: str
 
 
 class TaskExtractionResponse(BaseModel):
+
     tasks: list[str]
+
     deadlines: list[str]
+
     meeting_times: list[str]
+
     calendar_events: list[CalendarEvent]
 
 
-# --- Summarisation logic (R7) ---
 
-def summarize_email(subject: str, body: str, max_sentences: int = 2) -> str:
+# --------------------------------------------------
+# Voice Transcript Cleanup
+# --------------------------------------------------
+
+class VoiceCleanupInput(BaseModel):
+
+    transcript: str
+
+
+
+class VoiceCleanupResponse(BaseModel):
+
+    cleaned_text: str
+
+
+
+# ==================================================
+# Summarisation Logic
+# ==================================================
+
+def summarize_email(
+    subject: str,
+    body: str,
+    max_sentences: int = 2
+) -> str:
+
     prompt = f"""
 Summarise the following email in {max_sentences} sentences or fewer.
-Focus on the main point, any action items, and any deadlines mentioned.
-Do not add information that isn't in the email. Return plain text only,
-no markdown, no preamble like "Here is a summary:".
 
-Subject: {subject}
-Body: {body}
+Focus on:
+- the main point
+- important information
+- action items
+- deadlines
+
+Do not add information that is not present in the email.
+
+Return plain text only.
+
+Do not include markdown.
+
+Do not include a preamble such as:
+"Here is a summary".
+
+Subject:
+{subject}
+
+Body:
+{body}
 """
-    response = model.generate_content(prompt)
+
+
+    response = model.generate_content(
+        prompt
+    )
+
+
     return response.text.strip()
 
 
-def summarize_thread(messages: list[ThreadMessage], max_sentences: int = 3) -> str:
+
+# ==================================================
+# Thread Summarisation
+# ==================================================
+
+def summarize_thread(
+    messages: list[ThreadMessage],
+    max_sentences: int = 3
+) -> str:
+
     thread_text = ""
-    for i, msg in enumerate(messages, start=1):
-        thread_text += f"\n--- Message {i} from {msg.sender} ---\n"
-        thread_text += f"Subject: {msg.subject}\n{msg.body}\n"
+
+
+    for index, message in enumerate(
+        messages,
+        start=1
+    ):
+
+        thread_text += (
+            f"\n--- Message {index} "
+            f"from {message.sender} ---\n"
+        )
+
+        thread_text += (
+            f"Subject: {message.subject}\n"
+        )
+
+        thread_text += (
+            f"{message.body}\n"
+        )
+
 
     prompt = f"""
-The following is an email thread with multiple messages in chronological
-order. Summarise the entire thread in {max_sentences} sentences or fewer.
-Focus on: the main topic being discussed, any decisions made, and any
-outstanding action items or deadlines. Return plain text only, no markdown.
+The following is an email thread containing
+multiple messages in chronological order.
+
+Summarise the entire thread in
+{max_sentences} sentences or fewer.
+
+Focus on:
+- the main topic
+- decisions made
+- outstanding actions
+- deadlines
+
+Do not invent information.
+
+Return plain text only.
 
 {thread_text}
 """
-    response = model.generate_content(prompt)
+
+
+    response = model.generate_content(
+        prompt
+    )
+
+
     return response.text.strip()
 
 
-# --- Draft reply generation logic (R2, R5) ---
 
-def generate_draft_reply(subject: str, body: str, tone: str = "professional") -> str:
+# ==================================================
+# Draft Reply Generation
+# ==================================================
+
+def generate_draft_reply(
+    subject: str,
+    body: str,
+    tone: str = "professional"
+) -> str:
+
     prompt = f"""
-Write a {tone} reply to the following email. The reply should directly
-address the content of the email. Return only the reply text, no
-subject line, no markdown, no preamble.
+Write a {tone} reply to the following email.
 
-Subject: {subject}
-Body: {body}
+The reply must:
+- directly address the email
+- be appropriate for a professional workplace
+- respond only to information actually contained
+  in the email
+- avoid inventing facts, commitments, dates,
+  names or actions that were not provided
+
+Return only the reply.
+
+Do not include:
+- markdown
+- explanations
+- a subject line
+- commentary about the reply
+
+Subject:
+{subject}
+
+Body:
+{body}
 """
-    response = model.generate_content(prompt)
+
+
+    response = model.generate_content(
+        prompt
+    )
+
+
     return response.text.strip()
 
 
-# --- Priority classification logic (R1) ---
 
-def classify_priority(subject: str, body: str) -> str:
+# ==================================================
+# Priority Classification
+# ==================================================
+
+def classify_priority(
+    subject: str,
+    body: str
+) -> str:
+
     prompt = f"""
-Classify the priority/urgency of the following email as exactly one of:
-High, Medium, or Low.
+Classify the priority of the following email.
 
-Guidance:
-- High: urgent issues, deadlines within a day or two, safety/compliance
-  issues, stock shortages, system outages, anything requiring immediate
-  action.
-- Medium: normal business requests, meeting requests, routine follow-ups
-  with a deadline further out.
-- Low: FYI notifications, casual/personal messages, no action required.
+Return exactly ONE of these values:
 
-Return ONLY the single word: High, Medium, or Low. No punctuation, no
-explanation.
+High
+Medium
+Low
 
-Subject: {subject}
-Body: {body}
+Use these guidelines:
+
+High:
+- urgent issue
+- deadline within a day or two
+- safety or compliance issue
+- serious stock shortage
+- system outage
+- issue requiring immediate action
+
+Medium:
+- normal business request
+- meeting request
+- routine follow-up
+- task with a future deadline
+- ordinary workplace action required
+
+Low:
+- informational email
+- FYI notification
+- casual communication
+- newsletter
+- no action required
+
+Return ONLY:
+
+High
+
+or
+
+Medium
+
+or
+
+Low
+
+Subject:
+{subject}
+
+Body:
+{body}
 """
-    response = model.generate_content(prompt)
+
+
+    response = model.generate_content(
+        prompt
+    )
+
+
     result = response.text.strip()
 
-    for level in ["High", "Medium", "Low"]:
-        if level.lower() in result.lower():
+
+    for level in [
+        "High",
+        "Medium",
+        "Low"
+    ]:
+
+        if (
+            level.lower()
+            in result.lower()
+        ):
+
             return level
+
 
     return "Medium"
 
 
-# --- Task / calendar extraction logic (R6) ---
 
-def extract_tasks(subject: str, body: str) -> dict:
-    today_str = datetime.now().strftime("%Y-%m-%d (%A)")
+# ==================================================
+# Category Classification
+# ==================================================
+
+def classify_category(
+    subject: str,
+    body: str
+) -> str:
 
     prompt = f"""
-Today's date is {today_str}. Extract structured information from the
-following email. Return ONLY a valid JSON object (no markdown, no extra
-text) with these exact fields:
+Classify the following email into ONE useful
+business email category.
 
-- "tasks": a list of action items or to-dos mentioned in the email.
-  Each item should be a short string. Empty list if none.
-- "deadlines": a list of any deadlines or due dates mentioned, as short
-  strings (e.g. "Friday", "by end of week", "17 October"). Empty list
-  if none.
-- "meeting_times": a list of any meeting times or scheduled events
-  mentioned, as short human-readable strings. Empty list if none.
-- "calendar_events": a list of objects for any meetings or events that
-  have a clearly identifiable date/time, resolved relative to today's
-  date above. Each object must have:
-    - "title": a short descriptive title for the event
-    - "start": an ISO 8601 datetime string, e.g. "2026-10-06T10:00:00"
-    - "end": an ISO 8601 datetime string. If no duration is mentioned,
-      assume 1 hour after the start time.
-  Only include events where you can confidently resolve a real date.
-  If a time is mentioned but no clear date can be resolved, leave it
-  out of "calendar_events" (it can still appear in "meeting_times").
-  Empty list if no resolvable events.
+Choose the category that best describes the
+main purpose of the email.
 
-Do not invent information that isn't in the email.
+Possible categories include:
 
-Subject: {subject}
-Body: {body}
+- Meeting Request
+- Human Resources
+- Stock / Inventory
+- Distribution / Logistics
+- Pharmacy Operations
+- Compliance
+- Finance
+- IT / Technical Support
+- Customer / Client Request
+- Administration
+- Education / Training
+- Results / Assessment
+- General Information
+- Other
+
+Important:
+
+Do NOT classify an email as "Meeting Request"
+just because it contains a date, time, appointment,
+calendar reference, or meeting-related wording.
+
+Only use "Meeting Request" when the primary purpose
+of the email is actually to organise, request,
+reschedule, confirm, or discuss a meeting.
+
+Return ONLY the category name.
+
+Do not provide an explanation.
+
+Subject:
+{subject}
+
+Body:
+{body}
 """
-    response = model.generate_content(prompt)
-    text = response.text.strip()
 
-    if text.startswith("```"):
-        text = text.strip("`")
-        text = text.replace("json", "", 1).strip()
 
-    try:
-        result = json.loads(text)
-    except json.JSONDecodeError:
-        result = {
-            "tasks": [], "deadlines": [], "meeting_times": [],
-            "calendar_events": []
-        }
+    print(
+        "[CATEGORY DEBUG] Subject:",
+        subject
+    )
 
-    result.setdefault("tasks", [])
-    result.setdefault("deadlines", [])
-    result.setdefault("meeting_times", [])
-    result.setdefault("calendar_events", [])
+
+    response = model.generate_content(
+        prompt
+    )
+
+
+    result = response.text.strip()
+
+
+    print(
+        "[CATEGORY DEBUG] Gemini returned:",
+        result
+    )
+
+
+    if not result:
+
+        return "Other"
+
 
     return result
 
 
-# --- API endpoints ---
+
+# ==================================================
+# Task / Calendar Extraction
+# ==================================================
+def extract_tasks(
+    subject: str,
+    body: str
+) -> dict:
+
+    today_str = datetime.now().strftime("%Y-%m-%d (%A)")
+
+    prompt = f"""
+Today's date is {today_str}.
+
+Extract structured information from the following email.
+
+Return ONLY a valid JSON object with these exact fields:
+
+{{
+    "tasks": [],
+    "deadlines": [],
+    "meeting_times": [],
+    "calendar_events": []
+}}
+
+Rules:
+
+"tasks":
+- action items
+- requests
+- things the recipient needs to do
+- short strings only
+
+"deadlines":
+- due dates
+- deadlines
+- phrases such as "by Friday"
+- dates associated with required actions
+
+"meeting_times":
+- actual meetings
+- appointments
+- scheduled events
+- include date/time information where available
+
+"calendar_events":
+- include meetings or events that have a clearly identifiable date and time
+- resolve relative dates using today's date shown above
+- each event must contain:
+    - "title": a short descriptive title
+    - "start": an ISO 8601 datetime such as "2026-10-06T10:00:00"
+    - "end": an ISO 8601 datetime
+- if no duration is given, assume the event lasts 1 hour
+- only include an event when its real date can be confidently resolved
+- if a time is mentioned but its date cannot be resolved, it may still
+  appear in "meeting_times" but should not appear in "calendar_events"
+
+Do not invent information.
+
+If something is not present, return an empty list.
+
+Subject:
+{subject}
+
+Body:
+{body}
+"""
+
+    response = model.generate_content(
+        prompt
+    )
+
+    text = response.text.strip()
+
+    # Remove markdown code fences if Gemini returns them
+    if text.startswith("```"):
+
+        text = text.strip("`")
+
+        if text.lower().startswith("json"):
+
+            text = text[4:].strip()
+
+    try:
+
+        result = json.loads(
+            text
+        )
+
+    except json.JSONDecodeError:
+
+        print(
+            "[TASK DEBUG] Could not parse:",
+            text
+        )
+
+        result = {
+            "tasks": [],
+            "deadlines": [],
+            "meeting_times": [],
+            "calendar_events": []
+        }
+
+    result.setdefault(
+        "tasks",
+        []
+    )
+
+    result.setdefault(
+        "deadlines",
+        []
+    )
+
+    result.setdefault(
+        "meeting_times",
+        []
+    )
+
+    result.setdefault(
+        "calendar_events",
+        []
+    )
+
+    return result
+
+
+
+# ==================================================
+# Voice Transcript Cleanup
+# ==================================================
+
+def clean_voice_transcript(
+    transcript: str
+) -> str:
+
+    """
+    Cleans raw speech-to-text without changing
+    the user's intended message.
+
+    Gemini may add:
+    - punctuation
+    - capitalisation
+    - paragraph breaks
+    - obvious email formatting
+
+    Gemini must NOT:
+    - rewrite the meaning
+    - invent information
+    - add new commitments
+    - answer the email itself
+    """
+
+    prompt = f"""
+You are a text-cleanup component for a
+voice-controlled email assistant.
+
+Clean the following speech-to-text transcript
+so that it is suitable to place inside an email.
+
+You MAY:
+
+- add punctuation
+- add commas
+- add full stops
+- add question marks where clearly appropriate
+- correct capitalisation
+- add paragraph breaks
+- format greetings naturally
+- format sign-offs naturally
+- fix obvious speech-recognition spacing issues
+
+You MUST preserve the user's words, meaning,
+intent, facts and commitments.
+
+IMPORTANT:
+
+Do NOT write a new reply.
+
+Do NOT answer the email.
+
+Do NOT add information.
+
+Do NOT add facts.
+
+Do NOT add dates.
+
+Do NOT add promises or commitments.
+
+Do NOT make the message longer unless formatting
+requires it.
+
+Do NOT change the tone or meaning.
+
+If the transcript already contains good
+punctuation and formatting, leave it essentially
+unchanged.
+
+Return ONLY the cleaned text.
+
+No markdown.
+
+No explanation.
+
+Raw speech-to-text transcript:
+
+{transcript}
+"""
+
+
+    response = model.generate_content(
+        prompt
+    )
+
+
+    cleaned_text = (
+        response.text.strip()
+    )
+
+
+    if not cleaned_text:
+
+        return transcript.strip()
+
+
+    return cleaned_text
+
+
+
+# ==================================================
+# API Endpoints
+# ==================================================
+
+
+# --------------------------------------------------
+# Health Check
+# --------------------------------------------------
 
 @app.get("/")
 def health_check():
-    return {"status": "MedMail Genie backend is running"}
+
+    return {
+        "status":
+            "MedMail Genie backend is running"
+    }
 
 
-@app.post("/summarize/email", response_model=SummaryResponse)
-def summarize_single_email(email: EmailInput):
-    """Summarise a single email. Used for inbox list previews."""
+
+# --------------------------------------------------
+# Summarise Email
+# --------------------------------------------------
+
+@app.post(
+    "/summarize/email",
+    response_model=SummaryResponse
+)
+def summarize_single_email(
+    email: EmailInput
+):
+
     try:
-        summary = summarize_email(email.subject, email.body)
-        return SummaryResponse(summary=summary)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.post("/summarize/thread", response_model=SummaryResponse)
-def summarize_email_thread(thread: ThreadInput):
-    """Summarise a full email thread. Used when a user opens a conversation."""
-    try:
-        summary = summarize_thread(thread.messages)
-        return SummaryResponse(summary=summary)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/draft/generate", response_model=DraftResponse)
-def generate_draft(draft_input: DraftInput):
-    """Generate a draft reply to an email, in the requested tone."""
-    try:
-        draft = generate_draft_reply(
-            draft_input.subject, draft_input.body, draft_input.tone
+        summary = summarize_email(
+            email.subject,
+            email.body
         )
-        return DraftResponse(draft_reply=draft)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/classify/priority", response_model=PriorityResponse)
-def classify_priority_endpoint(email: EmailInput):
-    """Classify an email's priority as High, Medium, or Low."""
+        return SummaryResponse(
+            summary=summary
+        )
+
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(error)
+        )
+
+
+
+# --------------------------------------------------
+# Summarise Thread
+# --------------------------------------------------
+
+@app.post(
+    "/summarize/thread",
+    response_model=SummaryResponse
+)
+def summarize_email_thread(
+    thread: ThreadInput
+):
+
     try:
-        priority = classify_priority(email.subject, email.body)
-        return PriorityResponse(priority=priority)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
+        summary = summarize_thread(
+            thread.messages
+        )
 
 
-@app.post("/extract/tasks", response_model=TaskExtractionResponse)
-def extract_tasks_endpoint(email: EmailInput):
-    """
-    Extract tasks, deadlines, meeting times, and structured calendar
-    events (with resolvable dates) from an email.
-    """
+        return SummaryResponse(
+            summary=summary
+        )
+
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(error)
+        )
+
+
+
+# --------------------------------------------------
+# Generate Draft
+# --------------------------------------------------
+
+@app.post(
+    "/draft/generate",
+    response_model=DraftResponse
+)
+def generate_draft(
+    draft_input: DraftInput
+):
+
     try:
-        result = extract_tasks(email.subject, email.body)
-        return TaskExtractionResponse(**result)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
+        draft = generate_draft_reply(
+            draft_input.subject,
+            draft_input.body,
+            draft_input.tone
+        )
 
 
-# --- Placeholder sections for teammates to fill in ---
+        return DraftResponse(
+            draft_reply=draft
+        )
 
-# TODO (James): Category classification endpoint (R1)
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(error)
+        )
+
+
+
+# --------------------------------------------------
+# Classify Priority
+# --------------------------------------------------
+
+@app.post(
+    "/classify/priority",
+    response_model=PriorityResponse
+)
+def classify_priority_endpoint(
+    email: EmailInput
+):
+
+    try:
+
+        priority = classify_priority(
+            email.subject,
+            email.body
+        )
+
+
+        return PriorityResponse(
+            priority=priority
+        )
+
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(error)
+        )
+
+
+
+# --------------------------------------------------
+# Classify Category
+# --------------------------------------------------
+
+@app.post(
+    "/classify/category",
+    response_model=CategoryResponse
+)
+def classify_category_endpoint(
+    email: EmailInput
+):
+
+    try:
+
+        category = classify_category(
+            email.subject,
+            email.body
+        )
+
+
+        return CategoryResponse(
+            category=category
+        )
+
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(error)
+        )
+
+
+
+# --------------------------------------------------
+# Extract Tasks
+# --------------------------------------------------
+
+@app.post(
+    "/extract/tasks",
+    response_model=TaskExtractionResponse
+)
+def extract_tasks_endpoint(
+    email: EmailInput
+):
+
+    try:
+
+        result = extract_tasks(
+            email.subject,
+            email.body
+        )
+
+
+        return TaskExtractionResponse(
+            **result
+        )
+
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(error)
+        )
+
+
+
+# --------------------------------------------------
+# Clean Voice Transcript
+# --------------------------------------------------
+
+@app.post(
+    "/voice/cleanup",
+    response_model=VoiceCleanupResponse
+)
+def cleanup_voice_transcript(
+    voice_input: VoiceCleanupInput
+):
+
+    try:
+
+        transcript = (
+            voice_input.transcript.strip()
+        )
+
+
+        if not transcript:
+
+            return VoiceCleanupResponse(
+                cleaned_text=""
+            )
+
+
+        print(
+            "[VOICE DEBUG] Raw transcript:",
+            transcript
+        )
+
+
+        cleaned_text = (
+            clean_voice_transcript(
+                transcript
+            )
+        )
+
+
+        print(
+            "[VOICE DEBUG] Cleaned transcript:",
+            cleaned_text
+        )
+
+
+        return VoiceCleanupResponse(
+            cleaned_text=cleaned_text
+        )
+
+
+    except Exception as error:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(error)
+        )
