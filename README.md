@@ -66,14 +66,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for local checks, formatting, and where t
 
 Commit source code, dependency manifests, and `extensions/package-lock.json`. Keep `.env`, virtual environments, `node_modules`, caches, and generated bundles out of Git.
 
-### Why a clone may still be large
+### Repository history cleanup
 
-Earlier commits contain `node_modules`, including large native binaries. Although those dependencies have been removed from the current tree, a normal clone still downloads their history. Adding an ignore rule does not remove files that Git already tracks or erase older commits.
+On 3 October 2026, the history was rewritten to remove previously committed dependency folders, generated bundles, Python caches, and `.env` files. The source-code history was preserved, and a fresh clone's Git pack dropped from about 41 MB to 1.3 MB.
 
-For a smaller first download, use:
+If you cloned before this cleanup, save any uncommitted or unpushed work, keep the old folder as a temporary backup, and clone into a new folder:
 
 ```bash
-git clone --depth 1 https://github.com/SeanHilder/MedMailGenie.git
+git clone https://github.com/SeanHilder/MedMailGenie.git MedMailGenie-clean
 ```
 
-A shallow clone has limited history. If you later need older commits, run `git fetch --unshallow`. Permanently removing the old dependency files requires a coordinated history rewrite across the team; this cleanup leaves shared history intact.
+Follow [SETUP.md](SETUP.md) to reinstall dependencies and rebuild the extension. Restore local `.env` configuration separately. Copy any unfinished source changes into the new clone and commit them there; do not merge or push the old history back into the repository.
+
+For an even smaller download when you do not need older commits, add `--depth 1` to the clone command. Run `git fetch --unshallow` later if you need the full cleaned history.
