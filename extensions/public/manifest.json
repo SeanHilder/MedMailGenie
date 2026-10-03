@@ -3,23 +3,13 @@
   "name": "MedMailGenie",
   "version": "1.0.0",
   "description": "Intelligent email assistant for medical professionals",
-  "permissions": [
-    "storage",
-    "scripting"
-  ],
-  "host_permissions": [
-  "<all_urls>"
-  ],
+  "permissions": ["storage", "scripting"],
+  "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup.html"
   },
-  "background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
   "content_scripts": [
     {
-      "_matches_comment": ["https://mail.google.com/*"],
       "matches": ["<all_urls>"],
       "js": ["content.js"]
     }

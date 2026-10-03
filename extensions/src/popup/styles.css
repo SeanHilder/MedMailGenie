@@ -1,0 +1,275 @@
+/* Global Popup Styling */
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  width: 360px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  background: #f4f6f9;
+  color: #1f2937;
+}
+/* Main Container */
+.container {
+  padding: 14px;
+}
+/* MedMailGenie Logo Header */
+.brand-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.brand-logo {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+/* AI Assistant Status */
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  margin-bottom: 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #eff6ff;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e40af;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+}
+/* Cards */
+.card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+.section-title {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+/* Labels and Values */
+.label {
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+.value {
+  font-size: 13px;
+  font-weight: 650;
+  color: #1f2937;
+}
+/* Current Email */
+.email-field {
+  margin-bottom: 10px;
+}
+.email-body {
+  padding: 9px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #374151;
+  white-space: pre-line;
+}
+.email-meta {
+  display: flex;
+  gap: 18px;
+  margin-top: 10px;
+}
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+/* Priority and Topic Badges */
+.badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.priority {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.category {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+/* AI Summary */
+.summary {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #374151;
+}
+/* Suggested Reply Text Area */
+textarea {
+  width: 100%;
+  min-height: 95px;
+  max-height: 160px;
+  resize: vertical;
+  padding: 9px;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  background: white;
+  color: #111827;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+/* Tone Selector */
+.tone-row {
+  margin-top: 9px;
+}
+select {
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  background: white;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+}
+select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+/* General Button Styling */
+button {
+  border: none;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+button:hover {
+  transform: translateY(-1px);
+}
+button:active {
+  transform: translateY(0);
+}
+/* Voice Controls */
+.voice-row {
+  display: flex;
+  gap: 7px;
+  margin-top: 9px;
+}
+.voice-button {
+  flex: 1;
+  padding: 9px;
+  background: #f3f4f6;
+  color: #1f2937;
+}
+.voice-button:hover {
+  background: #e5e7eb;
+}
+/* Utility Controls */
+.utility-row {
+  display: flex;
+  gap: 7px;
+  margin-top: 7px;
+}
+.utility-button {
+  flex: 1;
+  padding: 8px;
+  background: #eef2f7;
+  color: #374151;
+}
+.utility-button:hover {
+  background: #e2e8f0;
+}
+/* Regenerate Reply Button */
+.regenerate-button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  background: #111827;
+  color: white;
+}
+.regenerate-button:hover {
+  background: #1f2937;
+}
+/* Human Review Controls */
+.review-row {
+  display: flex;
+  gap: 7px;
+  margin-top: 8px;
+}
+.edit-button {
+  flex: 1;
+  padding: 10px;
+  background: #e5e7eb;
+  color: #111827;
+}
+.approve-button {
+  flex: 1;
+  padding: 10px;
+  background: #2563eb;
+  color: white;
+}
+.approve-button:hover {
+  background: #1d4ed8;
+}
+/* Feedback Messages */
+.feedback {
+  display: none;
+  margin-top: 8px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.feedback.show {
+  display: block;
+}
+.feedback.success {
+  background: #ecfdf5;
+  color: #047857;
+}
+.feedback.info {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+/* Footer */
+.footer {
+  margin-top: 4px;
+  text-align: center;
+  font-size: 10px;
+  color: #9ca3af;
+}

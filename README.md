@@ -1,56 +1,79 @@
 # MedMailGenie
-intelligent email assistant for medical professionals
 
-# Sample Email Dataset
-https://www.kaggle.com/datasets/naserabdullahalam/phishing-email-dataset
+A university team project: a Chrome extension that helps users read and respond to Gmail messages, with a local Python API powered by Gemini.
 
-# SCRUM design framework
+## What it does
 
-Trello Link - https://trello.com/invite/b/6a717368a8b4ec37a212e840/ATTIb0eefbc746cc93870f1e0870e9454ef38D5FBC4B/my-trello-board
+- Summarises the open email and classifies its priority and topic.
+- Extracts tasks, deadlines, and meeting details.
+- Drafts replies with professional, friendly, concise, or formal tones.
+- Supports voice dictation, transcript cleanup, and reading replies aloud.
+- Opens Google Calendar event forms for extracted meetings.
 
-Scrum relies on fixed-length cycles (usually 1 to 4 weeks long) called Sprints. Everything in Scrum happens inside a Sprint container.
+Replies stay in the popup until you copy them into Gmail. Approving a reply does **not** send it, and calendar events are only saved after you confirm them in Google Calendar. Thread summarisation is available through the API; the popup currently analyses a single message.
 
-1.Sprint Planning:Kick-off event (Timeboxed: ~2 hrs per week of sprint length).The entire team meets to answer two main questions: What can be delivered in this Sprint, and How will that work get done? The team aligns on a Sprint Goal and selects items from the top of the Product Backlog to form the Sprint Backlog.
+## Get started
 
-2.Daily Scrum:15-minute daily synchronization.A brief daily check-in for developers to align on progress toward the Sprint Goal. Members quickly share progress, planned work for the day, and any blockers/impediments hindering progress.
+You need **Python 3.10+**, **Node.js 22.12+**, Chrome, and a Gemini API key.
 
-3.Backlog Refinement:Ongoing maintenance throughout the Sprint.Also known as "grooming." The team breaks down large backlog items into smaller user stories, clarifies acceptance criteria, and estimates effort (often using Story Points or Planning Poker).
+1. Follow [SETUP.md](SETUP.md) to start the backend and build the extension.
+2. Load `extensions/dist` as an unpacked extension in Chrome.
+3. Open a message in Gmail, then open MedMailGenie from the toolbar.
 
-4.Sprint Review:Held at the end of the Sprint with stakeholders.The team demonstrates the working Increment to key business stakeholders. This isn't just a presentation; it's a collaborative session to gather feedback, discuss market changes, and adapt the Product Backlog for upcoming sprints.
+Email content and voice transcripts used for AI features are sent through the local backend to Gemini. Use sample or synthetic emails while developing this university prototype.
 
-5.Sprint Retrospective:Internal team reflective wrap-up.The final event of the Sprint. The Scrum Team inspects how they worked together regarding processes, tools, communication, and team dynamics. They identify 1–2 actionable improvements to implement in the next Sprint.
+## How the project fits together
 
-
-# MedMailGenie Structure
 ```text
-MedMailGenie/
-│
-├── src/
-│   ├── background/
-│   │   └── background.ts
-│   │
-│   ├── content/
-│   │   └── content.ts
-│   │
-│   ├── popup/
-│   │   ├── popup.html
-│   │   ├── popup.ts
-│   │   └── popup.css
-│   │
-│   ├── options/
-│   │   ├── options.html
-│   │   └── options.ts
-│   │
-│   └── types/
-│       └── index.ts
-│
-├── public/
-│   └── icons/
-│
-├── manifest.json
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
+Gmail page <-> Chrome content script <-> Extension popup
+                                              |
+                                      Local FastAPI backend
+                                              |
+                                           Gemini
 ```
 
-Or just have a look at this chat log https://chatgpt.com/share/6a864f21-c074-83ec-9e5e-a53b7412559f
+```text
+backend/
+  main.py                 FastAPI application and middleware
+  app/
+    routes.py             HTTP endpoints
+    schemas.py            Request and response models
+    services.py           Email prompts and response parsing
+    gemini.py             Gemini client and text generation
+    config.py             Environment configuration
+  tests/                  API regression tests (no API key needed)
+  .env.example            Copy to .env and add your own key
+  requirements.txt        Runtime dependencies
+  requirements-dev.txt    Test and formatting tools
+extensions/
+  popup.html              Popup markup
+  public/                 Manifest and static assets, copied by Vite
+  src/
+    content.ts            Page-side message listener
+    content/              Gmail reading and speech recognition
+    popup/                Popup entry point, analysis, voice, state, and styles
+    api.ts                Shared backend HTTP client and URL
+    types.ts              Shared API response types
+  tests/                  Tests of the built content script
+  vite.config.ts          Extension build configuration
+```
+
+Start with `extensions/src/popup/index.ts` for popup behaviour, `extensions/src/content/gmail.ts` for reading Gmail, or `backend/app/services.py` for AI prompts. Build output belongs in `extensions/dist`; edit the source files instead.
+
+## Working on the project
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local checks, formatting, and where to make common changes. See [SETUP.md](SETUP.md) for troubleshooting and the API endpoint list.
+
+Commit source code, dependency manifests, and `extensions/package-lock.json`. Keep `.env`, virtual environments, `node_modules`, caches, and generated bundles out of Git.
+
+### Why a clone may still be large
+
+Earlier commits contain `node_modules`, including large native binaries. Although those dependencies have been removed from the current tree, a normal clone still downloads their history. Adding an ignore rule does not remove files that Git already tracks or erase older commits.
+
+For a smaller first download, use:
+
+```bash
+git clone --depth 1 https://github.com/SeanHilder/MedMailGenie.git
+```
+
+A shallow clone has limited history. If you later need older commits, run `git fetch --unshallow`. Permanently removing the old dependency files requires a coordinated history rewrite across the team; this cleanup leaves shared history intact.

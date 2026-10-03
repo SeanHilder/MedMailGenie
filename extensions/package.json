@@ -3,18 +3,18 @@
   "version": "1.0.0",
   "type": "module",
   "description": "intelligent email assistant for medical professionals",
-  "main": "index.js",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite",
-    "type-check": "tsc --noEmit"
+    "build": "npm run type-check && vite build",
+    "dev": "vite build --watch",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test tests/*.test.mjs"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SeanHilder/MedMailGenie.git"
   },
-  "keywords": [],
-  "author": "",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/SeanHilder/MedMailGenie/issues"
@@ -22,8 +22,12 @@
   "homepage": "https://github.com/SeanHilder/MedMailGenie#readme",
   "devDependencies": {
     "@types/chrome": "^0.2.6",
+    "prettier": "3.9.9",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1",
-    "vite-plugin-static-copy": "^4.1.1"
+    "vite": "^8.2.1"
+  },
+  "private": true,
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
   }
 }

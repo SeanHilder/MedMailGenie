@@ -1,1 +1,0 @@
-console.log("MedMailGenie background service worker loaded");

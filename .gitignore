@@ -1,8 +1,29 @@
+# Local configuration (keep shareable examples)
 .env
-backend/.env
+.env.*
+!.env.example
 
+# JavaScript dependencies and generated bundles
 node_modules/
 dist/
+
+# Python environments, bytecode and tool caches
+.venv/
+venv/
+env/
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Logs and local tooling
+*.log
+.idea/
+.vscode/
+.npm-cache/
 .DS_Store
+Thumbs.db
