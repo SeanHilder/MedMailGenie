@@ -1,9 +1,12 @@
 import { feedbackMessage, voiceBtn } from "./dom";
 import { state } from "./state";
 
+let feedbackTimer: number | undefined;
+
 export function showFeedback(
   message: string,
   type: "success" | "info" = "info",
+  persistent = false,
 ) {
   if (!feedbackMessage) {
     return;
@@ -11,9 +14,12 @@ export function showFeedback(
   feedbackMessage.textContent = message;
   feedbackMessage.className = "feedback";
   feedbackMessage.classList.add("show", type);
-  window.setTimeout(() => {
-    feedbackMessage?.classList.remove("show");
-  }, 2500);
+  window.clearTimeout(feedbackTimer);
+  if (!persistent) {
+    feedbackTimer = window.setTimeout(() => {
+      feedbackMessage?.classList.remove("show");
+    }, 2500);
+  }
 }
 
 export function resetApproval() {
@@ -26,10 +32,10 @@ export function setVoiceButtonListening(listening: boolean) {
     return;
   }
   if (listening) {
-    voiceBtn.textContent = "⏹ Stop Listening";
+    voiceBtn.textContent = "Stop Listening";
     voiceBtn.classList.add("listening");
   } else {
-    voiceBtn.textContent = "🎤 Voice";
+    voiceBtn.textContent = "Voice";
     voiceBtn.classList.remove("listening");
   }
 }

@@ -32,12 +32,18 @@ function element() {
   };
 }
 
-async function openPopup(email, failRequests = false) {
+async function openPopup(
+  email,
+  failRequests = false,
+  insertion = { success: true },
+) {
   const elements = Object.fromEntries(
     [...html.matchAll(/id="([^"]+)"/g)].map((match) => [match[1], element()]),
   );
   const badges = { ".badge.priority": element(), ".badge.category": element() };
   const requests = [];
+  const insertions = [];
+  const errors = [];
   elements.toneSelect.value = "professional";
   const responses = {
     "/classify/category": { category: "Administration" },
@@ -52,20 +58,26 @@ async function openPopup(email, failRequests = false) {
     "/draft/generate": { draft_reply: "Thanks, I will review it." },
   };
   vm.runInNewContext(bundle, {
-    console: { error() {} },
+    console: { error: (...args) => errors.push(args) },
     URLSearchParams,
     document: {
       getElementById: (id) => elements[id] ?? null,
       querySelector: (selector) => badges[selector] ?? null,
       createElement: element,
     },
-    window: { setTimeout() {} },
+    window: { setTimeout() {}, clearTimeout() {} },
     chrome: {
       runtime: { onMessage: { addListener() {} } },
       scripting: { executeScript: (_options, callback) => callback() },
       tabs: {
         query: (_options, callback) => callback([{ id: 1 }]),
-        sendMessage: (_id, _message, callback) => callback(email),
+        sendMessage: (id, message, callback) => {
+          if (message.type === "INSERT_APPROVED_REPLY") {
+            insertions.push({ id, ...message });
+            if (typeof insertion === "function") insertion(callback);
+            else callback(insertion);
+          } else callback(email);
+        },
       },
     },
     async fetch(url, options) {
@@ -81,18 +93,19 @@ async function openPopup(email, failRequests = false) {
   });
   // Allow the popup's promise chain to settle without waiting on network or timers.
   await new Promise((resolve) => setImmediate(resolve));
-  return { elements, badges, requests };
+  return { elements, badges, requests, insertions, errors };
 }
 
 const email = {
   success: true,
+  contextId: "original-message",
   subject: "Report",
   body: "Please review.",
   senderName: "Alex",
 };
 
 test("popup wires Gmail data into all five analysis requests and displays results", async () => {
-  const { elements, badges, requests } = await openPopup(email);
+  const { elements, badges, requests, insertions } = await openPopup(email);
   assert.equal(requests.length, 5);
   for (const request of requests) {
     assert.equal(request.body.subject, email.subject);
@@ -106,18 +119,33 @@ test("popup wires Gmail data into all five analysis requests and displays result
     "Task: Review report",
   );
   assert.equal(elements.replyBox.value, "Thanks, I will review it.");
-  elements.approveBtn.events.click();
-  assert.match(elements.feedbackMessage.textContent, /Copy it into Gmail/);
+  elements.replyBox.value = "My reviewed reply";
+  elements.replyBox.events.input();
+  await elements.approveBtn.events.click();
+  assert.equal(insertions.length, 1);
+  assert.equal(insertions[0].id, 1);
+  assert.equal(insertions[0].contextId, "original-message");
+  assert.equal(insertions[0].text, "My reviewed reply");
+  assert.match(
+    elements.feedbackMessage.textContent,
+    /Reply inserted into Gmail/,
+  );
 });
 
-test("popup avoids AI requests when no message is open", async () => {
-  const { elements, requests } = await openPopup({ success: false });
+test("popup shows an empty state without errors or AI requests when no message is open", async () => {
+  const { elements, requests, errors } = await openPopup({
+    success: false,
+    error: "No open email found. Please open a Gmail email first.",
+  });
   assert.equal(requests.length, 0);
+  assert.equal(errors.length, 0);
+  assert.match(elements.summaryText.textContent, /Open a Gmail email/);
   assert.equal(elements.tasksList.textContent, "No email detected.");
 });
 
 test("popup handles backend failures without leaving the reply button disabled", async () => {
-  const { elements } = await openPopup(email, true);
+  const { elements, errors } = await openPopup(email, true);
+  assert.ok(errors.length > 0);
   assert.equal(
     elements.summaryText.textContent,
     "Could not generate the AI summary.",
@@ -127,4 +155,45 @@ test("popup handles backend failures without leaving the reply button disabled",
     "Could not generate a suggested reply.",
   );
   assert.equal(elements.regenerateBtn.disabled, false);
+});
+
+test("approval does not insert placeholder text after failed generation or without an email", async () => {
+  for (const args of [
+    [email, true],
+    [{ success: false }, false],
+  ]) {
+    const { elements, insertions } = await openPopup(...args);
+    await elements.approveBtn.events.click();
+    assert.equal(insertions.length, 0);
+  }
+});
+
+test("insertion failure is visible and unlocks the popup for retry or copy", async () => {
+  const { elements } = await openPopup(email, false, {
+    success: false,
+    error: "Gmail already contains a draft.",
+  });
+  await elements.approveBtn.events.click();
+  assert.match(
+    elements.feedbackMessage.textContent,
+    /already contains a draft/,
+  );
+  assert.equal(elements.approveBtn.disabled, false);
+  assert.equal(elements.replyBox.readOnly, false);
+  assert.equal(elements.replyBox.value, "Thanks, I will review it.");
+});
+
+test("duplicate clicks insert only once while Gmail opens its reply editor", async () => {
+  let finish;
+  const { elements, insertions } = await openPopup(email, false, (callback) => {
+    finish = callback;
+  });
+  const pending = elements.approveBtn.events.click();
+  await elements.approveBtn.events.click();
+  assert.equal(insertions.length, 1);
+  assert.equal(elements.approveBtn.disabled, true);
+  assert.equal(elements.replyBox.readOnly, true);
+  finish({ success: true });
+  await pending;
+  assert.equal(elements.approveBtn.disabled, false);
 });

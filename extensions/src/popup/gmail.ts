@@ -1,5 +1,5 @@
 import { state } from "./state";
-import { emailSender, emailSubject, emailBody } from "./dom";
+import { emailSender, emailSubject } from "./dom";
 
 export function getCurrentEmailFromGmail(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -46,26 +46,24 @@ export function getCurrentEmailFromGmail(): Promise<boolean> {
                   return;
                 }
                 if (!response?.success) {
-                  console.error("No Gmail email was found:", response?.error);
+                  // No open email is an expected empty state, not an extension error.
+                  if (response?.success !== false) {
+                    console.error(
+                      "Invalid response when reading the Gmail email.",
+                    );
+                  }
                   resolve(false);
                   return;
                 }
                 state.currentEmailSubject = response.subject || "";
+                state.gmailTabId = tab.id!;
+                state.gmailContextId = response.contextId || "";
                 state.currentEmailBody = response.body || "";
-                if (response.senderName) {
-                  state.currentEmailSender = response.senderEmail
-                    ? `${response.senderName} <${response.senderEmail}>`
-                    : response.senderName;
-                } else {
-                  state.currentEmailSender = response.senderEmail || "";
-                }
+                state.currentEmailSender =
+                  response.senderName?.trim() || response.senderEmail || "";
                 if (emailSubject) {
                   emailSubject.textContent =
                     state.currentEmailSubject || "No subject";
-                }
-                if (emailBody) {
-                  emailBody.textContent =
-                    state.currentEmailBody || "No email body found.";
                 }
                 if (emailSender) {
                   emailSender.textContent =
@@ -76,6 +74,43 @@ export function getCurrentEmailFromGmail(): Promise<boolean> {
             );
           },
         );
+      },
+    );
+  });
+}
+
+export function insertReplyIntoGmail(text: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (state.gmailTabId === null || !state.gmailContextId) {
+      reject(
+        new Error("Reopen MedMailGenie on the Gmail email before approving."),
+      );
+      return;
+    }
+    chrome.tabs.sendMessage(
+      state.gmailTabId,
+      {
+        type: "INSERT_APPROVED_REPLY",
+        contextId: state.gmailContextId,
+        text,
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          reject(
+            new Error(
+              "Could not reach Gmail. Refresh Gmail and reopen MedMailGenie, or use Copy Reply.",
+            ),
+          );
+        } else if (!response?.success) {
+          reject(
+            new Error(
+              response?.error ||
+                "Could not insert the reply. Use Copy Reply instead.",
+            ),
+          );
+        } else {
+          resolve();
+        }
       },
     );
   });

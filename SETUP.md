@@ -84,7 +84,9 @@ The source manifest is `extensions/public/manifest.json`. Vite copies it and `pu
 
 Use a sample email to check summary, priority, topic, tasks, and reply generation. Change the tone and regenerate a reply. Try editing, approval, copying, voice input, and reading aloud. An extracted meeting should open a Google Calendar form with its title and times filled in.
 
-The popup must stay open during voice input. Allow microphone access if Chrome requests it. Review a draft and copy it into Gmail to send it yourself.
+The popup must stay open during voice input. Allow microphone access if Chrome requests it. Review and edit a draft, then click **Approve**. The extension opens Reply for the analysed message and inserts the text above any signature and quoted history. Review the result in Gmail and click **Send** yourself. No Gmail API setup is required; Gmail may autosave the inserted draft.
+
+To test approval, use a sample conversation with no existing reply text. Confirm that approval opens a reply, preserves line breaks, and does not send it. Repeat with an existing handwritten draft: insertion should stop and preserve your text. If the conversation changes after loading, reopen MedMailGenie to analyse it again. The popup analyses the last expanded, visible message. Reply-button detection currently uses Gmail's English labels; changed layouts or other languages may require opening Reply manually or using **Copy Reply**.
 
 ## Troubleshooting
 
@@ -94,6 +96,7 @@ The popup must stay open during voice input. Allow microphone access if Chrome r
 | API reports a missing key or unavailable model | Set `GOOGLE_API_KEY` and, if needed, `GEMINI_MODEL`; restart the backend after editing `.env`. |
 | No email detected | Open a message in Gmail, reload the extension, refresh Gmail, then reopen the popup. Gmail selectors live in `src/content/gmail.ts`. |
 | Old UI after changes | Run `npm run build`, reload the extension in Chrome, and refresh Gmail. |
+| Approval cannot insert a reply | Refresh Gmail after reloading the extension. Close unrelated reply editors, preserve any existing draft, and try again. Use Copy Reply if Gmail's layout is unsupported. |
 | `npm` scripts are blocked in PowerShell | Use `npm.cmd` instead of `npm`; no execution-policy change is needed. |
 | Node engine error | Check `node --version` and use Node 22.12+ or a newer supported release. |
 | Port 8000 is already in use | Stop the other local server, or change the API port and `extensions/src/api.ts` together, then rebuild. |

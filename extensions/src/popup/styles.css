@@ -81,16 +81,6 @@ body {
 .email-field {
   margin-bottom: 10px;
 }
-.email-body {
-  padding: 9px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #f9fafb;
-  font-size: 12px;
-  line-height: 1.45;
-  color: #374151;
-  white-space: pre-line;
-}
 .email-meta {
   display: flex;
   gap: 18px;
@@ -184,6 +174,46 @@ button:hover {
 button:active {
   transform: translateY(0);
 }
+/* Reply Heading and Actions */
+.reply-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.reply-heading .section-title {
+  margin-bottom: 0;
+}
+.reply-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.reply-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  background: transparent;
+  color: #6b7280;
+}
+.reply-icon-button:hover {
+  background: #eef2f7;
+  color: #1f2937;
+}
+.reply-icon-button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.reply-icon-button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+  transform: none;
+}
 /* Voice Controls */
 .voice-row {
   display: flex;
@@ -214,28 +244,11 @@ button:active {
 .utility-button:hover {
   background: #e2e8f0;
 }
-/* Regenerate Reply Button */
-.regenerate-button {
-  width: 100%;
-  margin-top: 8px;
-  padding: 10px;
-  background: #111827;
-  color: white;
-}
-.regenerate-button:hover {
-  background: #1f2937;
-}
 /* Human Review Controls */
 .review-row {
   display: flex;
   gap: 7px;
   margin-top: 8px;
-}
-.edit-button {
-  flex: 1;
-  padding: 10px;
-  background: #e5e7eb;
-  color: #111827;
 }
 .approve-button {
   flex: 1;

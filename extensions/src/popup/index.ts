@@ -6,14 +6,13 @@ import {
   tasksList,
   replyBox,
   toneSelect,
-  editBtn,
   approveBtn,
   regenerateBtn,
   copyBtn,
   clearBtn,
 } from "./dom";
 import { showFeedback, resetApproval, setVoiceButtonListening } from "./ui";
-import { getCurrentEmailFromGmail } from "./gmail";
+import { getCurrentEmailFromGmail, insertReplyIntoGmail } from "./gmail";
 import { analyseCurrentEmail, generateDraftReply } from "./analysis";
 import "./voice";
 
@@ -57,6 +56,11 @@ async function initialisePopup() {
 }
 
 replyBox?.addEventListener("input", () => {
+  state.replyReady =
+    Boolean(state.gmailContextId && replyBox?.value.trim()) &&
+    !state.isGeneratingReply;
+  if (approveBtn)
+    approveBtn.disabled = !state.replyReady || state.isInsertingReply;
   if (state.replyApproved) {
     resetApproval();
     showFeedback(
@@ -66,24 +70,56 @@ replyBox?.addEventListener("input", () => {
   }
 });
 
-editBtn?.addEventListener("click", () => {
-  replyBox?.focus();
-  if (state.replyApproved) {
-    resetApproval();
+approveBtn?.addEventListener("click", async () => {
+  if (!approveBtn) return;
+  if (state.isInsertingReply || state.isGeneratingReply || !state.replyReady)
+    return;
+  if (state.isListening) {
+    showFeedback(
+      "Stop voice input and review the reply before approving.",
+      "info",
+    );
+    return;
   }
-  showFeedback("You can now edit the suggested reply.", "info");
-});
-
-approveBtn?.addEventListener("click", () => {
   if (!replyBox || !replyBox.value.trim()) {
     showFeedback("The reply is empty. Add some text before approving.", "info");
     return;
   }
-  state.replyApproved = true;
-  showFeedback(
-    "Reply approved. Copy it into Gmail when you are ready to send.",
-    "success",
-  );
+  const text = replyBox.value;
+  state.isInsertingReply = true;
+  resetApproval();
+  const controls = [approveBtn, regenerateBtn, toneSelect, clearBtn];
+  controls.forEach((control) => {
+    if (control) control.disabled = true;
+  });
+  replyBox.readOnly = true;
+  approveBtn.textContent = "Inserting...";
+  showFeedback("Opening Gmail's reply editor...", "info");
+  try {
+    await insertReplyIntoGmail(text);
+    state.replyApproved = replyBox.value === text;
+    showFeedback(
+      "Reply inserted into Gmail. Review it there, then click Send when ready.",
+      "success",
+      true,
+    );
+  } catch (error) {
+    showFeedback(
+      error instanceof Error
+        ? error.message
+        : "Could not insert the reply. Use Copy Reply instead.",
+      "info",
+      true,
+    );
+  } finally {
+    state.isInsertingReply = false;
+    replyBox.readOnly = false;
+    controls.forEach((control) => {
+      if (control) control.disabled = false;
+    });
+    approveBtn.disabled = !state.replyReady;
+    approveBtn.textContent = "Approve";
+  }
 });
 
 regenerateBtn?.addEventListener("click", async () => {
@@ -115,6 +151,8 @@ copyBtn?.addEventListener("click", async () => {
 
 clearBtn?.addEventListener("click", () => {
   resetApproval();
+  state.replyReady = false;
+  if (approveBtn) approveBtn.disabled = true;
   state.currentVoiceTranscript = "";
   if (replyBox) {
     replyBox.value = "";

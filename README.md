@@ -10,7 +10,7 @@ A university team project: a Chrome extension that helps users read and respond 
 - Supports voice dictation, transcript cleanup, and reading replies aloud.
 - Opens Google Calendar event forms for extracted meetings.
 
-Replies stay in the popup until you copy them into Gmail. Approving a reply does **not** send it, and calendar events are only saved after you confirm them in Google Calendar. Thread summarisation is available through the API; the popup currently analyses a single message.
+Review and edit the draft, then click **Approve** to open Gmail's reply editor and insert it. You review the result and click **Send** in Gmail yourself. This uses the extension's content script; no Gmail API or OAuth setup is needed. Existing draft text is preserved, and Copy Reply remains available as a fallback. Gmail may autosave inserted text as a draft. Calendar events are only saved after you confirm them in Google Calendar. Thread summarisation is available through the API; the popup analyses the last expanded, visible message in the open conversation.
 
 ## Get started
 

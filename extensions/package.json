@@ -22,6 +22,7 @@
   "homepage": "https://github.com/SeanHilder/MedMailGenie#readme",
   "devDependencies": {
     "@types/chrome": "^0.2.6",
+    "jsdom": "^29.1.1",
     "prettier": "3.9.9",
     "typescript": "^7.0.2",
     "vite": "^8.2.1"

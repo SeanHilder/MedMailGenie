@@ -8,6 +8,7 @@ import {
   replyBox,
   toneSelect,
   regenerateBtn,
+  approveBtn,
 } from "./dom";
 import { showFeedback, resetApproval, hasCurrentEmail } from "./ui";
 import { postJson } from "../api";
@@ -155,7 +156,7 @@ async function loadTasks() {
           }
           const button = document.createElement("button");
           button.className = "utility-button";
-          button.textContent = `📅 Add "${event.title}" to Calendar`;
+          button.textContent = "Add to calendar";
           button.style.width = "100%";
           button.addEventListener("click", () => {
             const link = buildGoogleCalendarLink(
@@ -192,15 +193,16 @@ export async function generateDraftReply(showFeedbackMessages: boolean = true) {
     return;
   }
   state.isGeneratingReply = true;
+  state.replyReady = false;
+  if (approveBtn) approveBtn.disabled = true;
   const selectedTone = toneSelect?.value || "professional";
   resetApproval();
   if (showFeedbackMessages) {
     showFeedback(`Generating ${selectedTone} reply...`, "info");
   }
-  const previousButtonText = regenerateBtn?.textContent;
   if (regenerateBtn) {
     regenerateBtn.disabled = true;
-    regenerateBtn.textContent = "Generating...";
+    regenerateBtn.title = "Generating reply...";
   }
   replyBox.value = "Generating suggested reply...";
   try {
@@ -210,6 +212,7 @@ export async function generateDraftReply(showFeedbackMessages: boolean = true) {
       tone: selectedTone,
     });
     replyBox.value = data.draft_reply || "No suggested reply was generated.";
+    state.replyReady = Boolean(data.draft_reply?.trim());
     if (showFeedbackMessages) {
       showFeedback(`${selectedTone} reply generated.`, "success");
     }
@@ -224,9 +227,10 @@ export async function generateDraftReply(showFeedbackMessages: boolean = true) {
     }
   } finally {
     state.isGeneratingReply = false;
+    if (approveBtn) approveBtn.disabled = !state.replyReady;
     if (regenerateBtn) {
       regenerateBtn.disabled = false;
-      regenerateBtn.textContent = previousButtonText || "Regenerate Reply";
+      regenerateBtn.title = "Regenerate reply";
     }
   }
 }
