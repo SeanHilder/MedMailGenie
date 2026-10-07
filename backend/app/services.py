@@ -163,42 +163,162 @@ Body:
 
 def classify_category(subject: str, body: str) -> str:
     prompt = f"""
-Classify the following email into ONE useful
-business email category.
+Classify the following email into exactly ONE business email category.
 
-Choose the category that best describes the
-main purpose of the email.
+Choose the category that best describes the email's PRIMARY PURPOSE.
 
-Possible categories include:
+The primary purpose is the main reason the email was sent and the main
+action, request, or information the recipient is expected to respond to
+or act on.
 
-- Meeting Request
-- Human Resources
-- Stock / Inventory
-- Distribution / Logistics
-- Pharmacy Operations
-- Compliance
-- Finance
-- IT / Technical Support
-- Customer / Client Request
-- Administration
-- Education / Training
-- Results / Assessment
-- General Information
-- Other
+Do NOT choose a category simply because a keyword, date, person, meeting,
+result, or other topic is mentioned in the email.
 
-Important:
+Possible categories and their guidelines:
 
-Do NOT classify an email as "Meeting Request"
-just because it contains a date, time, appointment,
-calendar reference, or meeting-related wording.
+1. Meeting Request
+Use when the primary purpose is to organise, request, reschedule,
+confirm, or discuss a meeting or appointment.
 
-Only use "Meeting Request" when the primary purpose
-of the email is actually to organise, request,
-reschedule, confirm, or discuss a meeting.
+Do NOT use this category when a meeting, date, or appointment is only
+mentioned as secondary information.
+
+2. Human Resources
+Use for emails primarily about employees, staffing, recruitment,
+leave, payroll-related employee matters, performance, or workplace
+employee issues.
+
+Do NOT use this category when the email is primarily about general
+business administration or finance.
+
+3. Stock / Inventory
+Use for emails primarily about stock levels, stock availability,
+ordering, receiving, shortages, inventory management, or product
+supplies.
+
+Do NOT use this category when the primary purpose is transporting or
+distributing stock.
+
+4. Distribution / Logistics
+Use for emails primarily about deliveries, shipping, transport,
+warehousing, distribution, dispatch, or the movement of products.
+
+Do NOT use this category when the primary purpose is managing stock
+levels or inventory.
+
+5. Pharmacy Operations
+Use for emails primarily about the day-to-day operation of a pharmacy,
+including pharmacy workflows, dispensing processes, pharmacy services,
+or operational issues specific to pharmacy practice.
+
+Do NOT use this category simply because an email mentions a medicine
+or pharmacy.
+
+6. Compliance
+Use for emails primarily about regulations, policies, legal or
+regulatory requirements, audits, accreditation, safety requirements,
+or compliance obligations.
+
+Do NOT use this category when compliance is only mentioned as a
+secondary consideration.
+
+7. Finance
+Use for emails primarily about invoices, payments, billing, budgets,
+expenses, financial transactions, or other financial matters.
+
+Do NOT use this category when the email is primarily about ordering,
+stock, or administration and only mentions a financial amount.
+
+8. IT / Technical Support
+Use for emails primarily about software, hardware, systems, accounts,
+technical problems, access issues, or technical support.
+
+Do NOT use this category when technology is only mentioned as part of
+another business process.
+
+9. Customer / Client Request
+Use when the primary purpose is responding to, handling, or requesting
+something from a customer, patient, client, or external recipient.
+
+Do NOT use this category when a more specific operational category
+clearly describes the primary purpose of the email.
+
+10. Administration
+Use for general business or operational administration that does not
+fit a more specific category, such as documentation, records,
+procedures, forms, or routine administrative coordination.
+
+Do NOT use this category when another category more specifically
+describes the primary purpose.
+
+11. Education / Training
+Use for emails primarily about training, courses, workshops,
+educational sessions, learning materials, or staff education.
+
+Do NOT use this category simply because an email contains instructions
+or information that someone needs to read.
+
+12. Results / Assessment
+Use for emails primarily about test results, assessment results,
+reports, evaluations, or reviewing or communicating results.
+
+Do NOT use this category when a result is only mentioned as supporting
+information for another primary request.
+
+13. General Information
+Use when the primary purpose is to provide or request general
+information and no more specific category applies.
+
+Do NOT use this category when the email clearly belongs to one of the
+more specific categories above.
+
+14. Other
+Use only when the email does not reasonably fit any of the categories
+above.
+
+Use "Other" as a last resort.
+
+Important classification rules:
+
+- Return exactly ONE category.
+- Always classify based on the email's primary purpose.
+- Consider the entire email, including both the subject and body.
+- Do not classify based on keywords alone.
+- If multiple categories appear relevant, choose the category that best
+  represents the main action or purpose of the email.
+- Prefer a specific category over General Information or Other when
+  there is enough information to do so.
+- Do not invent information that is not present in the email.
+
+Examples of overlapping categories:
+
+Example 1:
+"Can we reschedule tomorrow's meeting to 3pm? We will discuss the
+patient's test results."
+Category: Meeting Request
+
+Example 2:
+"Please review the patient's test results before our appointment
+tomorrow."
+Category: Results / Assessment
+
+Example 3:
+"We are running low on vaccine stock. Please arrange another order."
+Category: Stock / Inventory
+
+Example 4:
+"The order has been dispatched and will arrive tomorrow."
+Category: Distribution / Logistics
+
+Example 5:
+"Please complete the mandatory compliance training before the audit."
+Category: Compliance
 
 Return ONLY the category name.
 
 Do not provide an explanation.
+Do not return multiple categories.
+Do not return markdown.
 
 Subject:
 {subject}
