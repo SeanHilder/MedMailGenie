@@ -16,8 +16,9 @@ if (!page.medMailGenieInitialized) {
       return true;
     }
     if (message.type === "GET_CURRENT_EMAIL") {
-      sendResponse(readCurrentEmail());
-      return;
+      // Expanding a collapsed thread is asynchronous, so keep the channel open.
+      void readCurrentEmail().then(sendResponse);
+      return true;
     }
     handleSpeechMessage(message, sendResponse);
   });

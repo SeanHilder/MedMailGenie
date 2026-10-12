@@ -27,7 +27,12 @@ def health_check():
 @router.post("/summarize/email", response_model=SummaryResponse)
 def summarize_single_email(email: EmailInput):
     try:
-        summary = services.summarize_email(email.subject, email.body)
+        summary = services.summarize_email(
+            email.subject,
+            email.body,
+            messages=email.messages,
+            user_email=email.user_email,
+        )
 
         return SummaryResponse(summary=summary)
 
@@ -50,7 +55,11 @@ def summarize_email_thread(thread: ThreadInput):
 def generate_draft(draft_input: DraftInput):
     try:
         draft = services.generate_draft_reply(
-            draft_input.subject, draft_input.body, draft_input.tone
+            draft_input.subject,
+            draft_input.body,
+            draft_input.tone,
+            messages=draft_input.messages,
+            user_email=draft_input.user_email,
         )
 
         return DraftResponse(draft_reply=draft)
@@ -62,7 +71,12 @@ def generate_draft(draft_input: DraftInput):
 @router.post("/classify/priority", response_model=PriorityResponse)
 def classify_priority_endpoint(email: EmailInput):
     try:
-        priority = services.classify_priority(email.subject, email.body)
+        priority = services.classify_priority(
+            email.subject,
+            email.body,
+            messages=email.messages,
+            user_email=email.user_email,
+        )
 
         return PriorityResponse(priority=priority)
 
@@ -73,7 +87,12 @@ def classify_priority_endpoint(email: EmailInput):
 @router.post("/classify/category", response_model=CategoryResponse)
 def classify_category_endpoint(email: EmailInput):
     try:
-        category = services.classify_category(email.subject, email.body)
+        category = services.classify_category(
+            email.subject,
+            email.body,
+            messages=email.messages,
+            user_email=email.user_email,
+        )
 
         return CategoryResponse(category=category)
 
@@ -84,7 +103,12 @@ def classify_category_endpoint(email: EmailInput):
 @router.post("/extract/tasks", response_model=TaskExtractionResponse)
 def extract_tasks_endpoint(email: EmailInput):
     try:
-        result = services.extract_tasks(email.subject, email.body)
+        result = services.extract_tasks(
+            email.subject,
+            email.body,
+            messages=email.messages,
+            user_email=email.user_email,
+        )
 
         return TaskExtractionResponse(**result)
 

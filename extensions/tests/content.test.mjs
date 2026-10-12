@@ -37,6 +37,18 @@ function createPage(markup = "", SpeechRecognition) {
     inject,
     listeners,
     messages,
+    // Reading Gmail is asynchronous because collapsed threads are expanded first.
+    read() {
+      return new Promise((resolve) => {
+        assert.equal(
+          listeners[0]({ type: "GET_CURRENT_EMAIL" }, {}, (value) =>
+            resolve(normalize(value)),
+          ),
+          true,
+          "keeps async message channel open",
+        );
+      });
+    },
     send(type) {
       let response;
       listeners[0]({ type }, {}, (value) => {
@@ -75,15 +87,15 @@ function addEditor(page, contents = "") {
   return editor;
 }
 
-test("reinjecting the content script registers only one message listener", () => {
+test("reinjecting the content script registers only one message listener", async () => {
   const page = createPage();
   page.inject();
   assert.equal(page.listeners.length, 1);
 });
 
-test("reads the open Gmail message and sender", () => {
+test("reads the open Gmail message and sender", async () => {
   const page = createPage(emailMarkup);
-  const { contextId, ...email } = page.send("GET_CURRENT_EMAIL");
+  const { contextId, ...email } = await page.read();
   assert.equal(typeof contextId, "string");
   assert.deepEqual(email, {
     success: true,
@@ -91,20 +103,29 @@ test("reads the open Gmail message and sender", () => {
     body: "Please review.",
     senderName: "Alex",
     senderEmail: "alex@example.com",
+    accountEmail: "",
+    messages: [
+      {
+        senderName: "Alex",
+        senderEmail: "alex@example.com",
+        date: "",
+        body: "Please review.",
+      },
+    ],
   });
 });
 
-test("reports when no email is open", () => {
-  assert.equal(createPage().send("GET_CURRENT_EMAIL").success, false);
+test("reports when no email is open", async () => {
+  assert.equal((await createPage().read()).success, false);
 });
 
-test("reports unsupported voice input", () => {
+test("reports unsupported voice input", async () => {
   const response = createPage().send("START_SPEECH_RECOGNITION");
   assert.equal(response.success, false);
   assert.match(response.error, /not supported/);
 });
 
-test("voice session survives reinjection and sends only final speech results", () => {
+test("voice session survives reinjection and sends only final speech results", async () => {
   let session;
   class Recognition {
     constructor() {
@@ -138,7 +159,7 @@ test("voice session survives reinjection and sends only final speech results", (
 
 test("approval opens Reply and inserts literal multiline text without clicking Send", async () => {
   const page = createPage(emailMarkup);
-  const { contextId } = page.send("GET_CURRENT_EMAIL");
+  const { contextId } = await page.read();
   let clickedSend = false;
   let inputEvents = 0;
   page.document.querySelector("button").onclick = () => {
@@ -167,7 +188,7 @@ test("approval opens Reply and inserts literal multiline text without clicking S
 test("approval preserves an existing draft", async () => {
   const page = createPage(emailMarkup);
   const editor = addEditor(page, "My unfinished reply");
-  const { contextId } = page.send("GET_CURRENT_EMAIL");
+  const { contextId } = await page.read();
   const result = await page.insert(contextId, "AI draft");
   assert.equal(result.success, false);
   assert.match(result.error, /already contains a draft/);
@@ -182,7 +203,7 @@ test("inserts above an existing signature and quoted history", async () => {
   );
   const signature = editor.querySelector(".gmail_signature");
   const quote = editor.querySelector(".gmail_quote");
-  const { contextId } = page.send("GET_CURRENT_EMAIL");
+  const { contextId } = await page.read();
   assert.equal((await page.insert(contextId, "Approved text")).success, true);
   assert.equal(editor.firstChild.textContent, "Approved text");
   assert.equal(editor.querySelector(".gmail_signature"), signature);
@@ -197,17 +218,17 @@ test("rejects a changed URL, message content, or stale context before clicking R
     (page) => {
       page.document.querySelector(".a3s").textContent = "Different email";
     },
-    (page) => {
-      page.send("GET_CURRENT_EMAIL");
+    async (page) => {
+      await page.read();
     },
   ]) {
     const page = createPage(emailMarkup);
-    const { contextId } = page.send("GET_CURRENT_EMAIL");
+    const { contextId } = await page.read();
     let clicked = false;
     page.document.querySelector("button").onclick = () => {
       clicked = true;
     };
-    change(page);
+    await change(page);
     assert.equal((await page.insert(contextId, "Draft")).success, false);
     assert.equal(clicked, false);
   }
@@ -215,7 +236,7 @@ test("rejects a changed URL, message content, or stale context before clicking R
 
 test("rechecks the conversation after opening the reply editor", async () => {
   const page = createPage(emailMarkup);
-  const { contextId } = page.send("GET_CURRENT_EMAIL");
+  const { contextId } = await page.read();
   page.document.querySelector("button").onclick = () => {
     addEditor(page);
     page.window.location.hash = "#inbox/other";
@@ -237,7 +258,7 @@ test("does not use a standalone compose window or another message's editor", asy
   const other = page.document.createElement("div");
   other.innerHTML = editorMarkup;
   page.document.querySelector("main").append(other);
-  const { contextId } = page.send("GET_CURRENT_EMAIL");
+  const { contextId } = await page.read();
   assert.equal((await page.insert(contextId, "Draft")).success, false);
   assert.equal(standalone.textContent, "");
   assert.equal(other.textContent, "");
@@ -251,7 +272,7 @@ test("reads and replies to the last visible expanded message", async () => {
     <span class="gD" email="sam@example.com">Sam</span><div class="a3s">Latest message</div>
     ${editorMarkup}</div><div class="adn" hidden><div class="a3s">Hidden message</div></div>`,
   );
-  const email = page.send("GET_CURRENT_EMAIL");
+  const email = await page.read();
   assert.equal(email.body, "Latest message");
   assert.equal(email.senderEmail, "sam@example.com");
   assert.equal((await page.insert(email.contextId, "Draft")).success, true);
@@ -260,7 +281,7 @@ test("reads and replies to the last visible expanded message", async () => {
 test("fails clearly when Reply cannot be found and rejects empty drafts", async () => {
   const page = createPage(emailMarkup);
   page.document.querySelector("button").remove();
-  const { contextId } = page.send("GET_CURRENT_EMAIL");
+  const { contextId } = await page.read();
   assert.match((await page.insert(contextId, "Draft")).error, /Reply button/);
   assert.match((await page.insert(contextId, "  ")).error, /empty/);
 });
@@ -272,7 +293,7 @@ test("waits for Gmail's asynchronous editor and supports its Reply link", async 
       '<span role="link" data-tooltip="Reply">Reply</span>',
     ),
   );
-  const { contextId } = page.send("GET_CURRENT_EMAIL");
+  const { contextId } = await page.read();
   page.document.querySelector('[data-tooltip="Reply"]').onclick = () => {
     page.window.setTimeout(() => addEditor(page), 10);
   };
@@ -292,12 +313,12 @@ test("does not click Reply labels embedded in the email body", async () => {
   page.document.querySelector('[aria-label="Reply"]').onclick = () => {
     clicked = true;
   };
-  const { contextId } = page.send("GET_CURRENT_EMAIL");
+  const { contextId } = await page.read();
   assert.equal((await page.insert(contextId, "Draft")).success, false);
   assert.equal(clicked, false);
 });
 
-test("removes newsletter image gaps while preserving readable email text and the original Gmail DOM", () => {
+test("removes newsletter image gaps while preserving readable email text and the original Gmail DOM", async () => {
   const page = createPage(emailMarkup);
   const body = page.document.querySelector(".a3s");
   body.innerHTML = `<p>Hi Alex,</p>
@@ -306,20 +327,95 @@ test("removes newsletter image gaps while preserving readable email text and the
     <p>Please   review&nbsp;the report.</p><p>Thanks,<br>The team</p>`;
   const original = body.innerHTML;
   assert.equal(
-    page.send("GET_CURRENT_EMAIL").body,
+    (await page.read()).body,
     "Hi Alex,\n\nPlease review the report.\n\nThanks,\nThe team",
   );
   assert.equal(body.innerHTML, original);
   assert.equal(body.querySelectorAll("img").length, 1);
 });
 
-test("keeps text boundaries in HTML lists and table cells without excessive blank lines", () => {
+test("keeps text boundaries in HTML lists and table cells without excessive blank lines", async () => {
   const page = createPage(emailMarkup);
   page.document.querySelector(".a3s").innerHTML =
     "<div>Agenda</div><ul><li>Review report</li><li>Confirm meeting</li></ul><table><tr><td>Date</td><td>Tuesday</td></tr></table><div hidden>Hidden spacer text</div>";
-  const text = page.send("GET_CURRENT_EMAIL").body;
+  const text = (await page.read()).body;
   assert.match(text, /Agenda\n/);
   assert.match(text, /Review report\n+Confirm meeting/);
   assert.match(text, /Date Tuesday/);
   assert.doesNotMatch(text, /\n{3}|Hidden spacer/);
+});
+
+// Gmail renders only the newest message until "Expand all" loads the rest.
+const collapsedThreadMarkup = `<main role="main"><h2 class="hP">Roster</h2>
+  <button aria-label="Mở rộng tất cả">Expand</button>
+  <div class="adn"><span class="gD" email="sam@example.com">Sam</span>
+    <span class="g3" title="10:05 12 Oct 2026">10:05</span>
+    <div class="a3s">Thanks, confirmed.<div class="gmail_quote">
+      <div class="gmail_attr">On Mon, Me wrote:</div>
+      <blockquote class="gmail_quote">Can you cover Friday?</blockquote>
+    </div></div>
+    <button role="button" aria-label="Reply">Reply</button>
+  </div></main>`;
+
+function expandOnClick(page, delay = 50) {
+  page.document.querySelector('[aria-label="Mở rộng tất cả"]').onclick = () => {
+    page.window.setTimeout(() => {
+      page.document.querySelector(".adn").insertAdjacentHTML(
+        "beforebegin",
+        `<div class="adn"><span class="gD" email="me@example.com">Me</span>
+          <span class="g3" title="09:00 12 Oct 2026">09:00</span>
+          <div class="a3s">Can you cover Friday?<div class="gmail_quote">
+            <div class="gmail_attr">---------- Forwarded message ---------</div>
+            Roster attached.</div></div></div>`,
+      );
+    }, delay);
+  };
+}
+
+test("expands a collapsed thread and reads every message oldest first", async () => {
+  const page = createPage(collapsedThreadMarkup);
+  page.document.title = "Roster - me@example.com - Gmail";
+  expandOnClick(page);
+  const email = await page.read();
+  assert.equal(email.accountEmail, "me@example.com");
+  assert.deepEqual(
+    email.messages.map((message) => [message.senderEmail, message.date]),
+    [
+      ["me@example.com", "09:00 12 Oct 2026"],
+      ["sam@example.com", "10:05 12 Oct 2026"],
+    ],
+  );
+  // Forwarded content in the first message is kept.
+  assert.match(
+    email.messages[0].body,
+    /Forwarded message[\s\S]*Roster attached/,
+  );
+  // The quoted copy of the earlier message is dropped from the reply.
+  assert.equal(email.messages[1].body, "Thanks, confirmed.");
+  // The latest message is still the one analysed and replied to.
+  assert.equal(email.senderEmail, "sam@example.com");
+  assert.match(email.body, /Thanks, confirmed\./);
+});
+
+test("replies to the latest message after expanding a thread", async () => {
+  const page = createPage(collapsedThreadMarkup);
+  expandOnClick(page);
+  const { contextId } = await page.read();
+  const latest = [...page.document.querySelectorAll(".adn")].at(-1);
+  latest.querySelector('[aria-label="Reply"]').onclick = () => {
+    latest.insertAdjacentHTML("beforeend", editorMarkup);
+  };
+  assert.equal((await page.insert(contextId, "Draft")).success, true);
+  assert.equal(
+    latest.querySelector("[contenteditable]").firstChild.textContent,
+    "Draft",
+  );
+});
+
+test("stops waiting when Expand all loads nothing new", async () => {
+  const page = createPage(collapsedThreadMarkup);
+  const started = Date.now();
+  const email = await page.read();
+  assert.equal(email.messages.length, 1);
+  assert.ok(Date.now() - started < 4000);
 });

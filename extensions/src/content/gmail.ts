@@ -1,14 +1,28 @@
 // Gmail has no public DOM contract. Keep selectors and conversation checks here.
 const editorSelector = '[contenteditable="true"][role="textbox"]';
 const replySelector = '[data-tooltip="Reply"], [aria-label="Reply"]';
+// Gmail only loads the newest message of a conversation. Its labels follow the UI language.
+const expandAllSelector = ["Expand all", "Mở rộng tất cả"]
+  .flatMap((label) => [`[aria-label="${label}"]`, `[data-tooltip="${label}"]`])
+  .join(", ");
+// Reply history quoted below a message. Forwarded content has no blockquote and is kept.
+const replyQuoteSelector = 'blockquote.gmail_quote, blockquote[type="cite"]';
 
 function visible(element: Element): element is HTMLElement {
   return element instanceof HTMLElement && element.getClientRects().length > 0;
 }
 
-function emailText(body: HTMLElement): string {
+function emailText(body: HTMLElement, withoutQuotedReplies = false): string {
   // Clean a detached copy so the original email in Gmail is never changed.
   const copy = body.cloneNode(true) as HTMLElement;
+  if (withoutQuotedReplies) {
+    // Earlier messages are read separately, so drop their quoted copies and "wrote:" lines.
+    copy.querySelectorAll(replyQuoteSelector).forEach((quote) => {
+      const attribution = quote.previousElementSibling;
+      if (attribution?.matches(".gmail_attr")) attribution.remove();
+      quote.remove();
+    });
+  }
   copy
     .querySelectorAll(
       "img, picture, svg, canvas, video, audio, iframe, script, style, template, [hidden], [aria-hidden='true']",
@@ -36,6 +50,62 @@ function emailText(body: HTMLElement): string {
     .trim();
 }
 
+function sender(message: Element) {
+  const element = message.querySelector(".gD[email]");
+  return {
+    senderEmail: element?.getAttribute("email") || "",
+    senderName: element?.textContent?.trim() || "",
+  };
+}
+
+// Every loaded message in the conversation, oldest first.
+function threadMessages(root: HTMLElement) {
+  return [...root.querySelectorAll(".adn")]
+    .filter(visible)
+    .flatMap((message) => {
+      const body = [...message.querySelectorAll("div.a3s")].find(visible);
+      return body ? [{ message, body }] : [];
+    });
+}
+
+function press(element: HTMLElement) {
+  // Gmail listens for the full mouse sequence rather than click alone.
+  for (const type of ["mousedown", "mouseup", "click"]) {
+    element.dispatchEvent(
+      new MouseEvent(type, { bubbles: true, cancelable: true, view: window }),
+    );
+  }
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function expandThread(root: HTMLElement) {
+  const button = [...document.querySelectorAll(expandAllSelector)].find(
+    visible,
+  );
+  if (!button) return;
+  const loaded = () =>
+    threadMessages(root).filter(({ body }) => body.textContent?.trim()).length;
+  const before = loaded();
+  press(button);
+  // Gmail fetches collapsed messages asynchronously. Stop once the count settles.
+  let last = before;
+  let stableChecks = 0;
+  for (let check = 1; check <= 25; check++) {
+    await wait(200);
+    const count = loaded();
+    stableChecks = count === last && count > before ? stableChecks + 1 : 0;
+    last = count;
+    if (stableChecks >= 2) return;
+    if (count === before && check >= 10) return;
+  }
+}
+
+function accountEmail() {
+  // Gmail's title ends with the signed-in address, e.g. "Subject - me@example.com - Gmail".
+  return document.title.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g)?.at(-1) || "";
+}
+
 function currentMessage() {
   if (location.hostname !== "mail.google.com") return null;
   const subjects = [...document.querySelectorAll("h2.hP")].filter(visible);
@@ -47,15 +117,13 @@ function currentMessage() {
   const body = [...root.querySelectorAll("div.a3s")].filter(visible).at(-1);
   const message = body?.closest<HTMLElement>(".adn");
   if (!body || !message) return null;
-  const sender = message.querySelector(".gD[email]");
   return {
     root,
     message,
     body,
     subject: subject.textContent?.trim() || "",
     text: emailText(body),
-    senderEmail: sender?.getAttribute("email") || "",
-    senderName: sender?.textContent?.trim() || "",
+    ...sender(message),
   };
 }
 
@@ -63,15 +131,29 @@ type Message = NonNullable<ReturnType<typeof currentMessage>>;
 let snapshot: { id: string; url: string; email: Message } | undefined;
 let inserting = false;
 
-export function readCurrentEmail() {
+const noEmail = {
+  success: false,
+  error: "No open email found. Please open a Gmail email first.",
+};
+
+export async function readCurrentEmail() {
+  snapshot = undefined;
+  const opened = currentMessage();
+  if (!opened) return noEmail;
+  await expandThread(opened.root);
+  // The newest message is still the last one; read it again after expanding.
   const email = currentMessage();
-  if (!email) {
-    snapshot = undefined;
-    return {
-      success: false,
-      error: "No open email found. Please open a Gmail email first.",
-    };
-  }
+  if (!email || email.root !== opened.root) return noEmail;
+  const messages = threadMessages(email.root)
+    .map(({ message, body }, index) => ({
+      ...sender(message),
+      date:
+        message.querySelector(".g3")?.getAttribute("title") ||
+        message.querySelector(".g3")?.textContent?.trim() ||
+        "",
+      body: emailText(body, index > 0),
+    }))
+    .filter((message) => message.body);
   snapshot = { id: crypto.randomUUID(), url: location.href, email };
   return {
     success: true,
@@ -80,6 +162,8 @@ export function readCurrentEmail() {
     body: email.text,
     senderEmail: email.senderEmail,
     senderName: email.senderName,
+    accountEmail: accountEmail(),
+    messages,
   };
 }
 

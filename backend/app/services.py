@@ -1,13 +1,88 @@
 """Email prompts and response parsing, independent of HTTP routing."""
 
 import json
+from collections.abc import Sequence
 from datetime import datetime
 
 from .gemini import generate_text
 from .schemas import ThreadMessage
 
+# Keep long conversations within a sensible prompt size; the oldest messages go first.
+MAX_THREAD_CHARS = 30_000
 
-def summarize_email(subject: str, body: str, max_sentences: int = 2) -> str:
+
+def _thread_text(messages: Sequence[ThreadMessage], user_email: str = "") -> str:
+    """Number the messages oldest first and mark the latest one."""
+    total = len(messages)
+    blocks: list[str] = []
+    used = 0
+
+    # Walk back from the newest message so the latest context is always kept.
+    for index in range(total, 0, -1):
+        message = messages[index - 1]
+        header = f"--- Message {index} of {total}"
+        header += " (LATEST) ---" if index == total else " ---"
+        lines = [header, f"From: {message.sender}"]
+        if message.date:
+            lines.append(f"Date: {message.date}")
+        if message.subject:
+            lines.append(f"Subject: {message.subject}")
+        block = "\n".join(lines) + f"\n\n{message.body.strip()}\n"
+
+        if blocks and used + len(block) > MAX_THREAD_CHARS:
+            blocks.append(
+                f"(Messages 1 to {index} are older and were left out to keep "
+                "this prompt short.)\n"
+            )
+            break
+        blocks.append(block[:MAX_THREAD_CHARS])
+        used += len(block)
+
+    intro = (
+        f"This is an email conversation with {total} messages, oldest first. "
+        f"Message {total} is the LATEST message."
+    )
+    if user_email:
+        intro += (
+            f"\nThe user of this assistant is {user_email}. Messages from that "
+            "address were written by the user; all others were sent to them."
+        )
+
+    return intro + "\n\n" + "\n".join(reversed(blocks))
+
+
+def _is_thread(messages: Sequence[ThreadMessage]) -> bool:
+    return len(messages) > 1
+
+
+def _email_text(
+    subject: str,
+    body: str,
+    messages: Sequence[ThreadMessage] = (),
+    user_email: str = "",
+) -> str:
+    """The email section of a prompt: one email, or the whole conversation."""
+    if not _is_thread(messages):
+        return f"Subject:\n{subject}\n\nBody:\n{body}"
+
+    return f"Subject:\n{subject}\n\n{_thread_text(messages, user_email)}"
+
+
+def _thread_rules(messages: Sequence[ThreadMessage], rules: str) -> str:
+    """Extra instructions that only apply when a whole conversation is sent."""
+    return f"{rules.strip()}\n" if _is_thread(messages) else ""
+
+
+def summarize_email(
+    subject: str,
+    body: str,
+    max_sentences: int = 2,
+    messages: Sequence[ThreadMessage] = (),
+    user_email: str = "",
+) -> str:
+    if _is_thread(messages):
+        return summarize_thread(messages, subject=subject, user_email=user_email)
+
     prompt = f"""
 Summarise the following email in {max_sentences} sentences or fewer.
 
@@ -26,25 +101,21 @@ Do not include markdown.
 Do not include a preamble such as:
 "Here is a summary".
 
-Subject:
-{subject}
-
-Body:
-{body}
+{_email_text(subject, body, messages, user_email)}
 """
 
     return generate_text(prompt)
 
 
-def summarize_thread(messages: list[ThreadMessage], max_sentences: int = 3) -> str:
-    thread_text = ""
-
-    for index, message in enumerate(messages, start=1):
-        thread_text += f"\n--- Message {index} from {message.sender} ---\n"
-
-        thread_text += f"Subject: {message.subject}\n"
-
-        thread_text += f"{message.body}\n"
+def summarize_thread(
+    messages: Sequence[ThreadMessage],
+    max_sentences: int = 3,
+    subject: str = "",
+    user_email: str = "",
+) -> str:
+    thread_text = _thread_text(messages, user_email)
+    if subject:
+        thread_text = f"Subject:\n{subject}\n\n{thread_text}"
 
     prompt = f"""
 The following is an email thread containing
@@ -56,12 +127,15 @@ Summarise the entire thread in
 Focus on:
 - the main topic
 - decisions made
-- outstanding actions
+- where things stand after the LATEST message
+- outstanding actions and who needs to take them
 - deadlines
 
 Do not invent information.
 
 Return plain text only.
+
+Do not include markdown.
 
 {thread_text}
 """
@@ -69,10 +143,26 @@ Return plain text only.
     return generate_text(prompt)
 
 
-def generate_draft_reply(subject: str, body: str, tone: str = "professional") -> str:
+def generate_draft_reply(
+    subject: str,
+    body: str,
+    tone: str = "professional",
+    messages: Sequence[ThreadMessage] = (),
+    user_email: str = "",
+) -> str:
+    thread_rules = _thread_rules(
+        messages,
+        """
+This is a conversation. Reply to the LATEST message and use the earlier
+messages only as context:
+- do not repeat answers, questions or information already given earlier
+- if the LATEST message was written by the user, write a short follow-up
+  from the user to the other people in the conversation instead
+""",
+    )
     prompt = f"""
 Write a {tone} reply to the following email.
-
+{thread_rules}
 The reply must:
 - directly address the email
 - be appropriate for a professional workplace
@@ -89,20 +179,29 @@ Do not include:
 - a subject line
 - commentary about the reply
 
-Subject:
-{subject}
-
-Body:
-{body}
+{_email_text(subject, body, messages, user_email)}
 """
 
     return generate_text(prompt)
 
 
-def classify_priority(subject: str, body: str) -> str:
+def classify_priority(
+    subject: str,
+    body: str,
+    messages: Sequence[ThreadMessage] = (),
+    user_email: str = "",
+) -> str:
+    thread_rules = _thread_rules(
+        messages,
+        """
+This is a conversation. Judge the priority as of the LATEST message: what
+still needs attention now. Do not raise the priority for issues that later
+messages show are already resolved.
+""",
+    )
     prompt = f"""
 Classify the priority of the following email.
-
+{thread_rules}
 Return exactly ONE of these values:
 
 High
@@ -145,11 +244,7 @@ or
 
 Low
 
-Subject:
-{subject}
-
-Body:
-{body}
+{_email_text(subject, body, messages, user_email)}
 """
 
     result = generate_text(prompt)
@@ -161,10 +256,22 @@ Body:
     return "Medium"
 
 
-def classify_category(subject: str, body: str) -> str:
+def classify_category(
+    subject: str,
+    body: str,
+    messages: Sequence[ThreadMessage] = (),
+    user_email: str = "",
+) -> str:
+    thread_rules = _thread_rules(
+        messages,
+        """
+This is a conversation. Classify the conversation as a whole by its primary
+purpose, not by a single message.
+""",
+    )
     prompt = f"""
 Classify the following email into exactly ONE business email category.
-
+{thread_rules}
 Choose the category that best describes the email's PRIMARY PURPOSE.
 
 The primary purpose is the main reason the email was sent and the main
@@ -320,11 +427,7 @@ Do not provide an explanation.
 Do not return multiple categories.
 Do not return markdown.
 
-Subject:
-{subject}
-
-Body:
-{body}
+{_email_text(subject, body, messages, user_email)}
 """
 
     result = generate_text(prompt)
@@ -335,14 +438,28 @@ Body:
     return result
 
 
-def extract_tasks(subject: str, body: str) -> dict:
+def extract_tasks(
+    subject: str,
+    body: str,
+    messages: Sequence[ThreadMessage] = (),
+    user_email: str = "",
+) -> dict:
     today_str = datetime.now().strftime("%Y-%m-%d (%A)")
+    thread_rules = _thread_rules(
+        messages,
+        """
+This is a conversation. Only include items that are still current as of the
+LATEST message:
+- leave out tasks that later messages show were done, cancelled or replaced
+- when a meeting was rescheduled, use only the most recently agreed time
+""",
+    )
 
     prompt = f"""
 Today's date is {today_str}.
 
 Extract structured information from the following email.
-
+{thread_rules}
 Return ONLY a valid JSON object with these exact fields:
 
 {{
@@ -388,11 +505,7 @@ Do not invent information.
 
 If something is not present, return an empty list.
 
-Subject:
-{subject}
-
-Body:
-{body}
+{_email_text(subject, body, messages, user_email)}
 """
 
     text = generate_text(prompt)

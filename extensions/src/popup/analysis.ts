@@ -14,6 +14,17 @@ import { showFeedback, resetApproval, hasCurrentEmail } from "./ui";
 import { postJson } from "../api";
 import type { TaskExtraction } from "../types";
 
+// Every analysis request carries the whole conversation so the backend can use
+// earlier messages as context while focusing on the latest one.
+function emailPayload() {
+  return {
+    subject: state.currentEmailSubject,
+    body: state.currentEmailBody,
+    messages: state.currentThreadMessages,
+    user_email: state.currentAccountEmail,
+  };
+}
+
 async function loadCategory() {
   if (!categoryBadge) {
     return;
@@ -24,10 +35,10 @@ async function loadCategory() {
   }
   categoryBadge.textContent = "Analysing...";
   try {
-    const data = await postJson<{ category: string }>("/classify/category", {
-      subject: state.currentEmailSubject,
-      body: state.currentEmailBody,
-    });
+    const data = await postJson<{ category: string }>(
+      "/classify/category",
+      emailPayload(),
+    );
     categoryBadge.textContent = data.category || "Other";
   } catch (error) {
     console.error("Failed to classify category:", error);
@@ -45,10 +56,10 @@ async function loadSummary() {
   }
   summaryText.textContent = "Generating AI summary...";
   try {
-    const data = await postJson<{ summary: string }>("/summarize/email", {
-      subject: state.currentEmailSubject,
-      body: state.currentEmailBody,
-    });
+    const data = await postJson<{ summary: string }>(
+      "/summarize/email",
+      emailPayload(),
+    );
     summaryText.textContent = data.summary || "No summary was generated.";
   } catch (error) {
     console.error("Failed to load summary:", error);
@@ -66,10 +77,10 @@ async function loadPriority() {
   }
   priorityBadge.textContent = "Analysing...";
   try {
-    const data = await postJson<{ priority: string }>("/classify/priority", {
-      subject: state.currentEmailSubject,
-      body: state.currentEmailBody,
-    });
+    const data = await postJson<{ priority: string }>(
+      "/classify/priority",
+      emailPayload(),
+    );
     priorityBadge.textContent = data.priority || "Unknown";
     priorityBadge.classList.remove(
       "priority-high",
@@ -119,10 +130,10 @@ async function loadTasks() {
   }
   tasksList.textContent = "Analysing tasks and deadlines...";
   try {
-    const data = await postJson<TaskExtraction>("/extract/tasks", {
-      subject: state.currentEmailSubject,
-      body: state.currentEmailBody,
-    });
+    const data = await postJson<TaskExtraction>(
+      "/extract/tasks",
+      emailPayload(),
+    );
     const tasks: string[] = Array.isArray(data.tasks) ? data.tasks : [];
     const deadlines: string[] = Array.isArray(data.deadlines)
       ? data.deadlines
@@ -207,8 +218,7 @@ export async function generateDraftReply(showFeedbackMessages: boolean = true) {
   replyBox.value = "Generating suggested reply...";
   try {
     const data = await postJson<{ draft_reply: string }>("/draft/generate", {
-      subject: state.currentEmailSubject,
-      body: state.currentEmailBody,
+      ...emailPayload(),
       tone: selectedTone,
     });
     replyBox.value = data.draft_reply || "No suggested reply was generated.";

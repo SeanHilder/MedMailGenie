@@ -1,5 +1,28 @@
 import { state } from "./state";
 import { emailSender, emailSubject } from "./dom";
+import type { ThreadMessage } from "../types";
+
+interface GmailMessage {
+  senderName?: string;
+  senderEmail?: string;
+  date?: string;
+  body?: string;
+}
+
+function formatSender(name?: string, email?: string) {
+  name = name?.trim();
+  if (name && email) return `${name} <${email}>`;
+  return name || email || "Unknown sender";
+}
+
+function threadMessages(messages: unknown): ThreadMessage[] {
+  if (!Array.isArray(messages)) return [];
+  return messages.map((message: GmailMessage) => ({
+    sender: formatSender(message.senderName, message.senderEmail),
+    date: message.date || "",
+    body: message.body || "",
+  }));
+}
 
 export function getCurrentEmailFromGmail(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -61,9 +84,13 @@ export function getCurrentEmailFromGmail(): Promise<boolean> {
                 state.currentEmailBody = response.body || "";
                 state.currentEmailSender =
                   response.senderName?.trim() || response.senderEmail || "";
+                state.currentAccountEmail = response.accountEmail || "";
+                state.currentThreadMessages = threadMessages(response.messages);
+                const count = state.currentThreadMessages.length;
                 if (emailSubject) {
                   emailSubject.textContent =
-                    state.currentEmailSubject || "No subject";
+                    (state.currentEmailSubject || "No subject") +
+                    (count > 1 ? ` (${count} messages)` : "");
                 }
                 if (emailSender) {
                   emailSender.textContent =
