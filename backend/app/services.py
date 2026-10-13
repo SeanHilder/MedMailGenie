@@ -11,6 +11,15 @@ from .schemas import ThreadMessage
 MAX_THREAD_CHARS = 30_000
 
 
+def _is_from_user(message: ThreadMessage, user_email: str) -> bool:
+    """True when the signed-in user wrote this message."""
+    return bool(user_email) and user_email.lower() in message.sender.lower()
+
+
+def _latest_is_from_user(messages: Sequence[ThreadMessage], user_email: str) -> bool:
+    return bool(messages) and _is_from_user(messages[-1], user_email)
+
+
 def _thread_text(messages: Sequence[ThreadMessage], user_email: str = "") -> str:
     """Number the messages oldest first and mark the latest one."""
     total = len(messages)
@@ -22,7 +31,10 @@ def _thread_text(messages: Sequence[ThreadMessage], user_email: str = "") -> str
         message = messages[index - 1]
         header = f"--- Message {index} of {total}"
         header += " (LATEST) ---" if index == total else " ---"
-        lines = [header, f"From: {message.sender}"]
+        sender = message.sender
+        if _is_from_user(message, user_email):
+            sender += " (written by the user)"
+        lines = [header, f"From: {sender}"]
         if message.date:
             lines.append(f"Date: {message.date}")
         if message.subject:
@@ -47,6 +59,11 @@ def _thread_text(messages: Sequence[ThreadMessage], user_email: str = "") -> str
             f"\nThe user of this assistant is {user_email}. Messages from that "
             "address were written by the user; all others were sent to them."
         )
+    if _latest_is_from_user(messages, user_email):
+        intro += (
+            "\nThe LATEST message was written by the user, so the user is now "
+            "waiting for the other people to respond."
+        )
 
     return intro + "\n\n" + "\n".join(reversed(blocks))
 
@@ -63,7 +80,11 @@ def _email_text(
 ) -> str:
     """The email section of a prompt: one email, or the whole conversation."""
     if not _is_thread(messages):
-        return f"Subject:\n{subject}\n\nBody:\n{body}"
+        email = f"Subject:\n{subject}\n\nBody:\n{body}"
+        if _latest_is_from_user(messages, user_email):
+            # For example, an email opened from the user's Sent folder.
+            email = f"This email was written and sent by the user.\n\n{email}"
+        return email
 
     return f"Subject:\n{subject}\n\n{_thread_text(messages, user_email)}"
 
@@ -71,6 +92,13 @@ def _email_text(
 def _thread_rules(messages: Sequence[ThreadMessage], rules: str) -> str:
     """Extra instructions that only apply when a whole conversation is sent."""
     return f"{rules.strip()}\n" if _is_thread(messages) else ""
+
+
+def _sent_by_user_rules(
+    messages: Sequence[ThreadMessage], user_email: str, rules: str
+) -> str:
+    """Extra instructions for when the user wrote the latest message."""
+    return f"{rules.strip()}\n" if _latest_is_from_user(messages, user_email) else ""
 
 
 def summarize_email(
@@ -83,9 +111,17 @@ def summarize_email(
     if _is_thread(messages):
         return summarize_thread(messages, subject=subject, user_email=user_email)
 
+    sent_rules = _sent_by_user_rules(
+        messages,
+        user_email,
+        """
+The user wrote this email. Summarise what the user sent or asked for, not
+what the user needs to do in response to it.
+""",
+    )
     prompt = f"""
 Summarise the following email in {max_sentences} sentences or fewer.
-
+{sent_rules}
 Focus on:
 - the main point
 - important information
@@ -116,6 +152,14 @@ def summarize_thread(
     thread_text = _thread_text(messages, user_email)
     if subject:
         thread_text = f"Subject:\n{subject}\n\n{thread_text}"
+    sent_rules = _sent_by_user_rules(
+        messages,
+        user_email,
+        """
+The user wrote the LATEST message. Make clear what the user last sent and
+what the user is now waiting for from the other people.
+""",
+    )
 
     prompt = f"""
 The following is an email thread containing
@@ -123,7 +167,7 @@ multiple messages in chronological order.
 
 Summarise the entire thread in
 {max_sentences} sentences or fewer.
-
+{sent_rules}
 Focus on:
 - the main topic
 - decisions made
@@ -156,13 +200,20 @@ def generate_draft_reply(
 This is a conversation. Reply to the LATEST message and use the earlier
 messages only as context:
 - do not repeat answers, questions or information already given earlier
-- if the LATEST message was written by the user, write a short follow-up
-  from the user to the other people in the conversation instead
+""",
+    )
+    sent_rules = _sent_by_user_rules(
+        messages,
+        user_email,
+        """
+The user wrote the LATEST message, so do not answer it as if it had been
+sent to the user. Instead write a short follow-up from the user to the
+other people, politely checking on what the user is waiting for.
 """,
     )
     prompt = f"""
 Write a {tone} reply to the following email.
-{thread_rules}
+{thread_rules}{sent_rules}
 The reply must:
 - directly address the email
 - be appropriate for a professional workplace
@@ -199,9 +250,18 @@ still needs attention now. Do not raise the priority for issues that later
 messages show are already resolved.
 """,
     )
+    sent_rules = _sent_by_user_rules(
+        messages,
+        user_email,
+        """
+The user wrote the LATEST message and is waiting for others to respond.
+Judge the priority by what the USER still has to do. If the user has no
+outstanding action or close deadline of their own, choose Low.
+""",
+    )
     prompt = f"""
 Classify the priority of the following email.
-{thread_rules}
+{thread_rules}{sent_rules}
 Return exactly ONE of these values:
 
 High
@@ -454,12 +514,21 @@ LATEST message:
 - when a meeting was rescheduled, use only the most recently agreed time
 """,
     )
+    sent_rules = _sent_by_user_rules(
+        messages,
+        user_email,
+        """
+The user wrote the LATEST message. "tasks" are only things the USER still
+needs to do. Requests or promises the user made to other people are not
+tasks for the user, so leave them out.
+""",
+    )
 
     prompt = f"""
 Today's date is {today_str}.
 
 Extract structured information from the following email.
-{thread_rules}
+{thread_rules}{sent_rules}
 Return ONLY a valid JSON object with these exact fields:
 
 {{
