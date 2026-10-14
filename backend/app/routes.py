@@ -7,6 +7,7 @@ from .schemas import (
     CategoryResponse,
     DraftInput,
     DraftResponse,
+    EmailAnalysisResponse,
     EmailInput,
     PriorityResponse,
     SummaryResponse,
@@ -22,6 +23,23 @@ router = APIRouter()
 @router.get("/")
 def health_check():
     return {"status": "MedMail Genie backend is running"}
+
+
+@router.post("/analyze/email", response_model=EmailAnalysisResponse)
+def analyze_email_endpoint(email: EmailInput):
+    """Category, priority, summary and tasks together, in one Gemini request."""
+    try:
+        result = services.analyze_email(
+            email.subject,
+            email.body,
+            messages=email.messages,
+            user_email=email.user_email,
+        )
+
+        return EmailAnalysisResponse(**result)
+
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
 
 
 @router.post("/summarize/email", response_model=SummaryResponse)

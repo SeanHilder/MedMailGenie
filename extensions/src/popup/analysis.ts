@@ -12,7 +12,7 @@ import {
 } from "./dom";
 import { showFeedback, resetApproval, hasCurrentEmail } from "./ui";
 import { postJson } from "../api";
-import type { TaskExtraction } from "../types";
+import type { EmailAnalysis, TaskExtraction } from "../types";
 
 // Every analysis request carries the whole conversation so the backend can use
 // earlier messages as context while focusing on the latest one.
@@ -25,79 +25,44 @@ function emailPayload() {
   };
 }
 
-async function loadCategory() {
-  if (!categoryBadge) {
-    return;
-  }
-  if (!hasCurrentEmail()) {
-    categoryBadge.textContent = "Unknown";
-    return;
-  }
-  categoryBadge.textContent = "Analysing...";
-  try {
-    const data = await postJson<{ category: string }>(
-      "/classify/category",
-      emailPayload(),
-    );
-    categoryBadge.textContent = data.category || "Other";
-  } catch (error) {
-    console.error("Failed to classify category:", error);
-    categoryBadge.textContent = "Unknown";
-  }
+function showAnalysisLoading() {
+  if (categoryBadge) categoryBadge.textContent = "Analysing...";
+  if (priorityBadge) priorityBadge.textContent = "Analysing...";
+  if (summaryText) summaryText.textContent = "Generating AI summary...";
+  if (tasksList) tasksList.textContent = "Analysing tasks and deadlines...";
+  if (calendarButtons) calendarButtons.innerHTML = "";
 }
 
-async function loadSummary() {
-  if (!summaryText) {
-    return;
-  }
-  if (!hasCurrentEmail()) {
-    summaryText.textContent = "Open an email to generate a summary.";
-    return;
-  }
-  summaryText.textContent = "Generating AI summary...";
-  try {
-    const data = await postJson<{ summary: string }>(
-      "/summarize/email",
-      emailPayload(),
-    );
-    summaryText.textContent = data.summary || "No summary was generated.";
-  } catch (error) {
-    console.error("Failed to load summary:", error);
-    summaryText.textContent = "Could not generate the AI summary.";
-  }
+function showAnalysisMessage(message: {
+  category: string;
+  priority: string;
+  summary: string;
+  tasks: string;
+}) {
+  if (categoryBadge) categoryBadge.textContent = message.category;
+  if (priorityBadge) priorityBadge.textContent = message.priority;
+  if (summaryText) summaryText.textContent = message.summary;
+  if (tasksList) tasksList.textContent = message.tasks;
+  if (calendarButtons) calendarButtons.innerHTML = "";
 }
 
-async function loadPriority() {
+function renderPriority(value: string) {
   if (!priorityBadge) {
     return;
   }
-  if (!hasCurrentEmail()) {
-    priorityBadge.textContent = "Unknown";
-    return;
-  }
-  priorityBadge.textContent = "Analysing...";
-  try {
-    const data = await postJson<{ priority: string }>(
-      "/classify/priority",
-      emailPayload(),
-    );
-    priorityBadge.textContent = data.priority || "Unknown";
-    priorityBadge.classList.remove(
-      "priority-high",
-      "priority-medium",
-      "priority-low",
-    );
-    const priority = String(data.priority || "").toLowerCase();
-    if (priority === "high") {
-      priorityBadge.classList.add("priority-high");
-    } else if (priority === "medium") {
-      priorityBadge.classList.add("priority-medium");
-    } else if (priority === "low") {
-      priorityBadge.classList.add("priority-low");
-    }
-  } catch (error) {
-    console.error("Failed to load priority:", error);
-    priorityBadge.textContent = "Unknown";
+  priorityBadge.textContent = value || "Unknown";
+  priorityBadge.classList.remove(
+    "priority-high",
+    "priority-medium",
+    "priority-low",
+  );
+  const priority = String(value || "").toLowerCase();
+  if (priority === "high") {
+    priorityBadge.classList.add("priority-high");
+  } else if (priority === "medium") {
+    priorityBadge.classList.add("priority-medium");
+  } else if (priority === "low") {
+    priorityBadge.classList.add("priority-low");
   }
 }
 
@@ -117,78 +82,94 @@ function buildGoogleCalendarLink(
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
-async function loadTasks() {
+
+function renderTasks(data: TaskExtraction) {
   if (!tasksList) {
     return;
   }
-  if (calendarButtons) {
-    calendarButtons.innerHTML = "";
+  const tasks: string[] = Array.isArray(data.tasks) ? data.tasks : [];
+  const deadlines: string[] = Array.isArray(data.deadlines)
+    ? data.deadlines
+    : [];
+  const meetings: string[] = Array.isArray(data.meeting_times)
+    ? data.meeting_times
+    : [];
+  const calendarEvents = Array.isArray(data.calendar_events)
+    ? data.calendar_events
+    : [];
+  const allItems = [
+    ...tasks.map((task: string) => `Task: ${task}`),
+    ...deadlines.map((deadline: string) => `Deadline: ${deadline}`),
+    ...meetings.map((meeting: string) => `Meeting: ${meeting}`),
+  ];
+  if (allItems.length === 0) {
+    tasksList.textContent = "No tasks, deadlines, or meetings found.";
+  } else {
+    tasksList.innerHTML = "";
+    allItems.forEach((item) => {
+      const listItem = document.createElement("li");
+      listItem.textContent = item;
+      tasksList?.appendChild(listItem);
+    });
   }
+  if (calendarButtons && calendarEvents.length > 0) {
+    calendarEvents.forEach(
+      (event: { title?: string; start?: string; end?: string }) => {
+        if (!event.title || !event.start || !event.end) {
+          return;
+        }
+        const button = document.createElement("button");
+        button.className = "utility-button";
+        button.textContent = "Add to calendar";
+        button.style.width = "100%";
+        button.addEventListener("click", () => {
+          const link = buildGoogleCalendarLink(
+            event.title!,
+            event.start!,
+            event.end!,
+          );
+          chrome.tabs.create({
+            url: link,
+          });
+        });
+        calendarButtons?.appendChild(button);
+      },
+    );
+  }
+}
+
+// Category, priority, summary and tasks come from ONE backend request, which
+// keeps the popup within the Gemini free tier's requests-per-minute limit.
+async function loadAnalysis() {
   if (!hasCurrentEmail()) {
-    tasksList.textContent = "Open an email to extract tasks.";
+    showAnalysisMessage({
+      category: "Unknown",
+      priority: "Unknown",
+      summary: "Open an email to generate a summary.",
+      tasks: "Open an email to extract tasks.",
+    });
     return;
   }
-  tasksList.textContent = "Analysing tasks and deadlines...";
+  showAnalysisLoading();
   try {
-    const data = await postJson<TaskExtraction>(
-      "/extract/tasks",
+    const data = await postJson<EmailAnalysis>(
+      "/analyze/email",
       emailPayload(),
     );
-    const tasks: string[] = Array.isArray(data.tasks) ? data.tasks : [];
-    const deadlines: string[] = Array.isArray(data.deadlines)
-      ? data.deadlines
-      : [];
-    const meetings: string[] = Array.isArray(data.meeting_times)
-      ? data.meeting_times
-      : [];
-    const calendarEvents = Array.isArray(data.calendar_events)
-      ? data.calendar_events
-      : [];
-    const allItems = [
-      ...tasks.map((task: string) => `Task: ${task}`),
-      ...deadlines.map((deadline: string) => `Deadline: ${deadline}`),
-      ...meetings.map((meeting: string) => `Meeting: ${meeting}`),
-    ];
-    if (allItems.length === 0) {
-      tasksList.textContent = "No tasks, deadlines, or meetings found.";
-    } else {
-      tasksList.innerHTML = "";
-      allItems.forEach((item) => {
-        const listItem = document.createElement("li");
-        listItem.textContent = item;
-        tasksList?.appendChild(listItem);
-      });
+    if (categoryBadge) categoryBadge.textContent = data.category || "Other";
+    renderPriority(data.priority);
+    if (summaryText) {
+      summaryText.textContent = data.summary || "No summary was generated.";
     }
-    if (calendarButtons && calendarEvents.length > 0) {
-      calendarEvents.forEach(
-        (event: { title?: string; start?: string; end?: string }) => {
-          if (!event.title || !event.start || !event.end) {
-            return;
-          }
-          const button = document.createElement("button");
-          button.className = "utility-button";
-          button.textContent = "Add to calendar";
-          button.style.width = "100%";
-          button.addEventListener("click", () => {
-            const link = buildGoogleCalendarLink(
-              event.title!,
-              event.start!,
-              event.end!,
-            );
-            chrome.tabs.create({
-              url: link,
-            });
-          });
-          calendarButtons?.appendChild(button);
-        },
-      );
-    }
+    renderTasks(data);
   } catch (error) {
-    console.error("Failed to load tasks:", error);
-    tasksList.textContent = "Could not extract tasks or deadlines.";
-    if (calendarButtons) {
-      calendarButtons.innerHTML = "";
-    }
+    console.error("Failed to analyse email:", error);
+    showAnalysisMessage({
+      category: "Unknown",
+      priority: "Unknown",
+      summary: "Could not generate the AI summary.",
+      tasks: "Could not extract tasks or deadlines.",
+    });
   }
 }
 
@@ -246,11 +227,5 @@ export async function generateDraftReply(showFeedbackMessages: boolean = true) {
 }
 
 export async function analyseCurrentEmail() {
-  await Promise.all([
-    loadCategory(),
-    loadSummary(),
-    loadPriority(),
-    loadTasks(),
-    generateDraftReply(false),
-  ]);
+  await Promise.all([loadAnalysis(), generateDraftReply(false)]);
 }

@@ -57,6 +57,12 @@ class TaskExtractionResponse(BaseModel):
     calendar_events: list[CalendarEvent]
 
 
+class EmailAnalysisResponse(TaskExtractionResponse):
+    category: str
+    priority: str
+    summary: str
+
+
 class VoiceCleanupInput(BaseModel):
     transcript: str
 

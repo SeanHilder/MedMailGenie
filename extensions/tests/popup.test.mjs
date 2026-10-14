@@ -46,10 +46,10 @@ async function openPopup(
   const errors = [];
   elements.toneSelect.value = "professional";
   const responses = {
-    "/classify/category": { category: "Administration" },
-    "/classify/priority": { priority: "Medium" },
-    "/summarize/email": { summary: "Review the report." },
-    "/extract/tasks": {
+    "/analyze/email": {
+      category: "Administration",
+      priority: "Medium",
+      summary: "Review the report.",
       tasks: ["Review report"],
       deadlines: [],
       meeting_times: [],
@@ -104,9 +104,13 @@ const email = {
   senderName: "Alex",
 };
 
-test("popup wires Gmail data into all five analysis requests and displays results", async () => {
+test("popup analyses Gmail data with two backend requests and displays results", async () => {
   const { elements, badges, requests, insertions } = await openPopup(email);
-  assert.equal(requests.length, 5);
+  // One request for category, priority, summary and tasks; one for the reply.
+  assert.deepEqual(requests.map((request) => request.path).sort(), [
+    "/analyze/email",
+    "/draft/generate",
+  ]);
   for (const request of requests) {
     assert.equal(request.body.subject, email.subject);
     assert.equal(request.body.body, email.body);
@@ -114,6 +118,7 @@ test("popup wires Gmail data into all five analysis requests and displays result
   assert.equal(elements.emailSender.textContent, "Alex");
   assert.equal(elements.summaryText.textContent, "Review the report.");
   assert.equal(badges[".badge.priority"].textContent, "Medium");
+  assert.equal(badges[".badge.category"].textContent, "Administration");
   assert.equal(
     elements.tasksList.children[0].textContent,
     "Task: Review report",
@@ -196,4 +201,35 @@ test("duplicate clicks insert only once while Gmail opens its reply editor", asy
   finish({ success: true });
   await pending;
   assert.equal(elements.approveBtn.disabled, false);
+});
+
+test("popup sends the whole Gmail thread with both analysis requests", async () => {
+  const thread = {
+    ...email,
+    accountEmail: "me@example.com",
+    messages: [
+      {
+        senderName: "Me",
+        senderEmail: "me@example.com",
+        date: "09:00",
+        body: "Can you review?",
+      },
+      {
+        senderName: "Alex",
+        senderEmail: "",
+        date: "10:00",
+        body: "Please review.",
+      },
+    ],
+  };
+  const { elements, requests } = await openPopup(thread);
+  assert.equal(requests.length, 2);
+  for (const request of requests) {
+    assert.equal(request.body.user_email, "me@example.com");
+    assert.deepEqual(request.body.messages, [
+      { sender: "Me <me@example.com>", date: "09:00", body: "Can you review?" },
+      { sender: "Alex", date: "10:00", body: "Please review." },
+    ]);
+  }
+  assert.equal(elements.emailSubject.textContent, "Report (2 messages)");
 });

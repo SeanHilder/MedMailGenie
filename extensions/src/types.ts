@@ -17,3 +17,10 @@ export interface TaskExtraction {
   meeting_times: string[];
   calendar_events: CalendarEvent[];
 }
+
+// Result of /analyze/email: everything except the reply, from one Gemini request.
+export interface EmailAnalysis extends TaskExtraction {
+  category: string;
+  priority: string;
+  summary: string;
+}

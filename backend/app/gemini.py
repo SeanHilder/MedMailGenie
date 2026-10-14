@@ -18,5 +18,7 @@ def get_model():
     return genai.GenerativeModel(GEMINI_MODEL)
 
 
-def generate_text(prompt: str) -> str:
-    return get_model().generate_content(prompt).text.strip()
+def generate_text(prompt: str, json_output: bool = False) -> str:
+    # JSON mode makes Gemini return a parseable object instead of prose.
+    config = {"response_mime_type": "application/json"} if json_output else None
+    return get_model().generate_content(prompt, generation_config=config).text.strip()
