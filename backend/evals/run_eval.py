@@ -11,7 +11,7 @@ with open("evals/test_emails.json") as f:
 
 cat_correct = pri_correct = 0
 
-for ex in examples[:2]:
+for ex in examples:
     category = client.post("/classify/category", json={"subject": ex["subject"], "body": ex["body"]})
     priority = client.post("/classify/priority", json={"subject": ex["subject"], "body": ex["body"]})
     pred_category = category.json()
