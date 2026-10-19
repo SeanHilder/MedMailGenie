@@ -1,0 +1,57 @@
+[
+  {"subject": "Availability for QA review meeting Thursday", "body": "Hi, could we schedule 30 minutes on Thursday to go through the batch release checklist? Let me know what time suits you.", "category": "Meeting Request", "priority": "Medium"},
+  {"subject": "URGENT: call at 2pm re supplier recall notice", "body": "We've received a recall notice from our wholesaler and need everyone on a call at 2pm today to decide how to respond. Please confirm you can attend immediately.", "category": "Meeting Request", "priority": "High"},
+  {"subject": "Coffee catch-up sometime?", "body": "No rush at all, but it would be good to catch up over coffee next month and talk through the new store layout ideas.", "category": "Meeting Request", "priority": "Low"},
+
+  {"subject": "Annual leave request: 8-29 December", "body": "I'd like to apply for annual leave from 8 to 29 December. Could you let me know whether this is approved so I can book flights?", "category": "Human Resources", "priority": "Medium"},
+  {"subject": "Formal complaint about conduct in the dispensary", "body": "I would like to lodge a formal complaint about repeated inappropriate comments from a colleague in the dispensary. I'd like to meet with HR as soon as possible.", "category": "Human Resources", "priority": "High"},
+  {"subject": "Updated staff parking arrangements", "body": "Please note the updated staff parking arrangements that take effect next quarter. No action is required, this is just for your information.", "category": "Human Resources", "priority": "Low"},
+
+  {"subject": "Out of stock: amoxicillin 500mg capsules", "body": "We have completely run out of amoxicillin 500mg capsules and have three patients waiting on repeat scripts. Please arrange an urgent top-up today.", "category": "Stock / Inventory", "priority": "High"},
+  {"subject": "Stocktake variances in OTC vitamins", "body": "The monthly stocktake shows small variances in OTC vitamins, about 12 units in total. Could someone review the counts when convenient?", "category": "Stock / Inventory", "priority": "Medium"},
+  {"subject": "Slow-moving products list for the quarter", "body": "Attached is the list of slow-moving products for this quarter. Worth considering at the next order review, but nothing urgent.", "category": "Stock / Inventory", "priority": "Low"},
+
+  {"subject": "Vaccine delivery: refrigerated truck lost power in transit", "body": "The courier reports the refrigerated truck lost power for about 4 hours. The temperature logger shows a peak of 11C. Please advise before we receive or shelve the shipment.", "category": "Distribution / Logistics", "priority": "High"},
+  {"subject": "Weekly delivery delayed to Wednesday", "body": "The weekly delivery to the Northside branch has been pushed from Tuesday to Wednesday due to a driver shortage. Stock should still arrive before the weekend.", "category": "Distribution / Logistics", "priority": "Medium"},
+  {"subject": "New courier pickup window", "body": "FYI, the courier's afternoon pickup window will move from 3:30pm to 4:00pm starting next month.", "category": "Distribution / Logistics", "priority": "Low"},
+
+  {"subject": "Compounding room out of action today", "body": "The fume cupboard in the compounding room failed its check, so no compounding can happen until it is repaired. We have six compounded scripts due for collection today.", "category": "Pharmacy Operations", "priority": "High"},
+  {"subject": "Swap Saturday dispensary shifts?", "body": "Can we swap the Saturday dispensary shifts between Priya and Tom this month? Both of them have already agreed.", "category": "Pharmacy Operations", "priority": "Medium"},
+  {"subject": "Idea: move the label printer", "body": "I think the label printer would work better next to the dispensing bench, it would save a few steps per script. Just a suggestion.", "category": "Pharmacy Operations", "priority": "Low"},
+
+  {"subject": "Regulator inspection notice: records needed Friday", "body": "We've received notice of an inspection this Friday. Please have the controlled drug registers, temperature logs and training records ready for the inspector.", "category": "Compliance", "priority": "High"},
+  {"subject": "Reminder: monthly controlled drug register reconciliation", "body": "A reminder that the monthly controlled drug register reconciliation needs to be completed and signed off by the end of this week.", "category": "Compliance", "priority": "Medium"},
+  {"subject": "SOP-114 revised: document retention", "body": "SOP-114 has been revised to reflect updated record retention periods. Please read it when you have time, no immediate action needed.", "category": "Compliance", "priority": "Low"},
+
+  {"subject": "Account on hold: invoice 48213 overdue", "body": "Our wholesaler has placed the account on hold over unpaid invoice #48213 for $42,300. Supply will be suspended tomorrow unless payment is received.", "category": "Finance", "priority": "High"},
+  {"subject": "Expense claim for conference travel", "body": "Please approve my attached expense claim for travel to the pharmacy conference last month. Receipts are included.", "category": "Finance", "priority": "Medium"},
+  {"subject": "Blank budget template for next quarter", "body": "Attached is the blank template for next quarter's budget. Please complete it by the end of next month.", "category": "Finance", "priority": "Low"},
+
+  {"subject": "Dispensing system frozen since 9am", "body": "Our dispensing software has been frozen since 9am and we can't process any prescriptions. Please help as soon as possible, patients are waiting.", "category": "IT / Technical Support", "priority": "High"},
+  {"subject": "Request for a replacement laptop", "body": "My laptop battery is failing and only lasts about an hour. Could I get a replacement? I can manage for now.", "category": "IT / Technical Support", "priority": "Medium"},
+  {"subject": "Back office printer low on toner", "body": "The printer in the back office is flashing a low toner warning but is still printing fine.", "category": "IT / Technical Support", "priority": "Low"},
+
+  {"subject": "Customer needs script transferred today", "body": "A customer has called asking us to transfer their heart medication prescription to a pharmacy interstate today, as they are travelling tomorrow morning.", "category": "Customer / Client Request", "priority": "High"},
+  {"subject": "Customer asking about non-drowsy allergy tablets", "body": "A customer asked whether we stock a non-drowsy allergy tablet and whether we can order one in for next week.", "category": "Customer / Client Request", "priority": "Medium"},
+  {"subject": "Customer suggestion for loyalty program", "body": "A regular customer mentioned they'd love to see more rewards in the loyalty program. Passing the feedback along.", "category": "Customer / Client Request", "priority": "Low"},
+
+  {"subject": "Lease renewal needs your signature by 5pm", "body": "The lease renewal for the Eastside premises needs your signature by 5pm today, otherwise the landlord will withdraw the offer.", "category": "Administration", "priority": "High"},
+  {"subject": "Confirm next month's stationery order", "body": "Please confirm the stationery order for next month and let me know if you'd like to add anything before I submit it on Friday.", "category": "Administration", "priority": "Medium"},
+  {"subject": "Staff noticeboard tidy-up", "body": "A gentle reminder to remove any old notices from the staff noticeboard when you get a chance.", "category": "Administration", "priority": "Low"},
+
+  {"subject": "Mandatory infection control training overdue", "body": "Your mandatory infection control training is two weeks overdue. Please complete it by Friday or you will be restricted from dispensary duties.", "category": "Education / Training", "priority": "High"},
+  {"subject": "CPD webinar on updated diabetes guidelines", "body": "We're hosting a CPD webinar next Tuesday on the updated diabetes management guidelines. Registration is now open.", "category": "Education / Training", "priority": "Medium"},
+  {"subject": "Interesting article on pharmacy trends", "body": "Thought you might find this article on emerging pharmacy trends interesting. Read it whenever you have a spare moment.", "category": "Education / Training", "priority": "Low"},
+
+  {"subject": "Critical potassium result flagged", "body": "The lab has flagged a critical potassium result for a patient on one of our blister packs. The prescriber needs to be contacted immediately.", "category": "Results / Assessment", "priority": "High"},
+  {"subject": "Quarterly dispensing accuracy results", "body": "The results of the quarterly internal dispensing accuracy assessment are attached. Accuracy was 98.7%, slightly down from last quarter.", "category": "Results / Assessment", "priority": "Medium"},
+  {"subject": "Competency assessment passed", "body": "Just confirming that Sam passed the annual competency assessment. The certificate is attached for your records.", "category": "Results / Assessment", "priority": "Low"},
+
+  {"subject": "Gas leak reported next door: evacuate now", "body": "A gas leak has been reported in the building next door. All staff and customers must leave the premises immediately and gather at the car park.", "category": "General Information", "priority": "High"},
+  {"subject": "Storm forecast tonight", "body": "A storm is forecast for tonight and may cause power disruption. Please check the fridge backup arrangements and be aware we may close early tomorrow.", "category": "General Information", "priority": "Medium"},
+  {"subject": "October staff newsletter", "body": "Here's this month's newsletter with store updates, birthdays and a recap of the charity fun run.", "category": "General Information", "priority": "Low"},
+
+  {"subject": "Suspicious person near the back door", "body": "There's someone loitering near the back door and trying the handle. I've locked it, but please let me know what you'd like me to do.", "category": "Other", "priority": "High"},
+  {"subject": "Sponsorship request from local netball club", "body": "The local netball club is asking whether we'd be interested in sponsoring their team this season. Details are attached.", "category": "Other", "priority": "Medium"},
+  {"subject": "Umbrella found in the staff room", "body": "Someone left a black umbrella in the staff room. Please collect it if it's yours.", "category": "Other", "priority": "Low"}
+]
