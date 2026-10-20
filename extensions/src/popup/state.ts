@@ -15,6 +15,6 @@ export const state = {
   currentThreadMessages: [] as ThreadMessage[],
   replyApproved: false,
   isGeneratingReply: false,
-  isListening: false,
-  currentVoiceTranscript: "",
+  voicePhase: "idle" as
+    "idle" | "starting" | "listening" | "stopping" | "formatting",
 };

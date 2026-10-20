@@ -11,13 +11,13 @@ import {
   copyBtn,
   clearBtn,
 } from "./dom";
-import { showFeedback, resetApproval, setVoiceButtonListening } from "./ui";
+import { showFeedback, resetApproval, refreshReplyControls } from "./ui";
 import { getCurrentEmailFromGmail, insertReplyIntoGmail } from "./gmail";
 import { analyseCurrentEmail, generateDraftReply } from "./analysis";
-import "./voice";
+import { cancelVoiceInput } from "./voice";
 
 async function initialisePopup() {
-  setVoiceButtonListening(false);
+  refreshReplyControls();
   if (categoryBadge) {
     categoryBadge.textContent = "Loading...";
   }
@@ -56,11 +56,14 @@ async function initialisePopup() {
 }
 
 replyBox?.addEventListener("input", () => {
+  if (state.voicePhase === "formatting") {
+    cancelVoiceInput();
+    showFeedback("Voice reply edited. Review it before approving.", "info");
+  }
   state.replyReady =
     Boolean(state.gmailContextId && replyBox?.value.trim()) &&
     !state.isGeneratingReply;
-  if (approveBtn)
-    approveBtn.disabled = !state.replyReady || state.isInsertingReply;
+  refreshReplyControls();
   if (state.replyApproved) {
     resetApproval();
     showFeedback(
@@ -74,9 +77,9 @@ approveBtn?.addEventListener("click", async () => {
   if (!approveBtn) return;
   if (state.isInsertingReply || state.isGeneratingReply || !state.replyReady)
     return;
-  if (state.isListening) {
+  if (state.voicePhase !== "idle") {
     showFeedback(
-      "Stop voice input and review the reply before approving.",
+      "Finish voice input and review the reply before approving.",
       "info",
     );
     return;
@@ -88,11 +91,7 @@ approveBtn?.addEventListener("click", async () => {
   const text = replyBox.value;
   state.isInsertingReply = true;
   resetApproval();
-  const controls = [approveBtn, regenerateBtn, toneSelect, clearBtn];
-  controls.forEach((control) => {
-    if (control) control.disabled = true;
-  });
-  replyBox.readOnly = true;
+  refreshReplyControls();
   approveBtn.textContent = "Inserting...";
   showFeedback("Opening Gmail's reply editor...", "info");
   try {
@@ -113,21 +112,19 @@ approveBtn?.addEventListener("click", async () => {
     );
   } finally {
     state.isInsertingReply = false;
-    replyBox.readOnly = false;
-    controls.forEach((control) => {
-      if (control) control.disabled = false;
-    });
-    approveBtn.disabled = !state.replyReady;
+    refreshReplyControls();
     approveBtn.textContent = "Approve";
   }
 });
 
 regenerateBtn?.addEventListener("click", async () => {
+  if (state.voicePhase !== "idle") return;
   resetApproval();
   await generateDraftReply(true);
 });
 
 toneSelect?.addEventListener("change", async () => {
+  if (state.voicePhase !== "idle") return;
   resetApproval();
   const selectedTone = toneSelect?.value || "professional";
   showFeedback(`Changing reply tone to ${selectedTone}...`, "info");
@@ -150,10 +147,11 @@ copyBtn?.addEventListener("click", async () => {
 });
 
 clearBtn?.addEventListener("click", () => {
+  if (state.isInsertingReply || state.isGeneratingReply) return;
+  cancelVoiceInput();
   resetApproval();
   state.replyReady = false;
   if (approveBtn) approveBtn.disabled = true;
-  state.currentVoiceTranscript = "";
   if (replyBox) {
     replyBox.value = "";
     replyBox.focus();

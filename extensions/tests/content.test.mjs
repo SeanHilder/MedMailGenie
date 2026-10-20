@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { JSDOM } from "jsdom";
+import { event, linkedPorts, fakeTimers } from "./voice-helpers.mjs";
 
 // Test the actual Chrome bundle: content scripts must work without ES module imports.
 const bundle = readFileSync(
@@ -9,7 +10,9 @@ const bundle = readFileSync(
   "utf8",
 );
 
-function createPage(markup = "", SpeechRecognition) {
+function createPage(markup = "", SpeechRecognition, mockTimers = false) {
+  const onConnect = event();
+  const timers = fakeTimers();
   const listeners = [];
   const messages = [];
   const dom = new JSDOM(markup, {
@@ -22,9 +25,14 @@ function createPage(markup = "", SpeechRecognition) {
     return this.closest("[hidden]") ? [] : [{}];
   };
   window.SpeechRecognition = SpeechRecognition;
+  if (mockTimers) {
+    window.setTimeout = timers.setTimeout;
+    window.clearTimeout = timers.clearTimeout;
+  }
   window.chrome = {
     runtime: {
       onMessage: { addListener: (listener) => listeners.push(listener) },
+      onConnect,
       sendMessage: (message) => messages.push(message),
     },
   };
@@ -33,6 +41,19 @@ function createPage(markup = "", SpeechRecognition) {
   const normalize = (value) => value && JSON.parse(JSON.stringify(value));
   return {
     window,
+    timers,
+    onConnect,
+    voice() {
+      const [client, server] = linkedPorts();
+      const received = [];
+      client.onMessage.addListener((message) => received.push(message));
+      onConnect.emit(server);
+      return {
+        received,
+        send: (type) => client.postMessage({ type }),
+        close: () => client.disconnect(),
+      };
+    },
     document: window.document,
     inject,
     listeners,
@@ -119,42 +140,119 @@ test("reports when no email is open", async () => {
   assert.equal((await createPage().read()).success, false);
 });
 
-test("reports unsupported voice input", async () => {
-  const response = createPage().send("START_SPEECH_RECOGNITION");
-  assert.equal(response.success, false);
-  assert.match(response.error, /not supported/);
+test("reports unsupported voice input", () => {
+  const voice = createPage().voice();
+  voice.send("START_SPEECH_RECOGNITION");
+  assert.equal(voice.received[0].error, "unsupported");
 });
 
-test("voice session survives reinjection and sends only final speech results", async () => {
-  let session;
+function speechPage() {
+  const sessions = [];
   class Recognition {
     constructor() {
-      session = this;
+      sessions.push(this);
+      this.stops = 0;
+      this.aborts = 0;
     }
     start() {}
     stop() {
-      this.onend();
+      this.stops++;
+    }
+    abort() {
+      this.aborts++;
     }
   }
-  const page = createPage("", Recognition);
-  assert.equal(page.send("START_SPEECH_RECOGNITION").success, true);
-  // A second click must not create another session while microphone permission is pending.
-  assert.equal(page.send("START_SPEECH_RECOGNITION").success, false);
+  const page = createPage("", Recognition, true);
+  const voice = page.voice();
+  voice.send("START_SPEECH_RECOGNITION");
+  return { page, voice, sessions, session: sessions[0] };
+}
+
+const result = (text, isFinal = true) => ({ isFinal, 0: { transcript: text } });
+
+test("voice snapshots revise interim words without duplicating final results", () => {
+  const { page, voice, session } = speechPage();
   session.onstart();
+  session.onresult({ results: [result("Hello", false)] });
   session.onresult({
-    resultIndex: 0,
-    results: [
-      { isFinal: false, 0: { transcript: "Ignore interim" } },
-      { isFinal: true, 0: { transcript: "Hello team" } },
-    ],
+    results: [result("Hello team"), result("thanks", false)],
   });
+  session.onresult({ results: [result("Hello team"), result("thank you")] });
   page.inject();
-  assert.equal(page.send("STOP_SPEECH_RECOGNITION").success, true);
-  assert.deepEqual(
-    page.messages.map((message) => message.type),
-    ["SPEECH_STARTED", "SPEECH_RESULT", "SPEECH_ENDED"],
+  assert.equal(page.onConnect.length, 1);
+  assert.equal(session.interimResults, true);
+  voice.send("STOP_SPEECH_RECOGNITION");
+  assert.equal(session.stops, 1);
+  assert.equal(voice.received.at(-1).type, "SPEECH_RESULT");
+  session.onresult({
+    results: [result("Hello team"), result("thank you very much")],
+  });
+  session.onend();
+  assert.equal(voice.received.at(-1).type, "SPEECH_ENDED");
+  assert.equal(
+    voice.received.at(-1).transcript,
+    "Hello team thank you very much",
   );
-  assert.equal(page.messages[1].transcript, "Hello team");
+});
+
+test("Stop during startup remains stopped when Chrome starts late", () => {
+  const { page, voice, session } = speechPage();
+  voice.send("STOP_SPEECH_RECOGNITION");
+  session.onstart();
+  assert.equal(session.stops, 2);
+  assert.equal(
+    voice.received.some((m) => m.type === "SPEECH_STARTED"),
+    false,
+  );
+  page.timers.run(2000);
+  assert.equal(session.aborts, 1);
+  assert.equal(voice.received.at(-1).type, "SPEECH_ENDED");
+});
+
+test("a stuck Stop aborts after two seconds and old events cannot end a new session", () => {
+  const { page, voice, sessions, session } = speechPage();
+  session.onstart();
+  session.onresult({ results: [result("Keep this text")] });
+  const lateEnd = session.onend;
+  const lateStart = session.onstart;
+  voice.send("STOP_SPEECH_RECOGNITION");
+  voice.send("STOP_SPEECH_RECOGNITION");
+  assert.equal(session.stops, 1);
+  page.timers.run(2000);
+  assert.equal(session.aborts, 1);
+  assert.equal(voice.received.at(-1).transcript, "Keep this text");
+  const next = page.voice();
+  next.send("START_SPEECH_RECOGNITION");
+  sessions[1].onstart();
+  lateEnd();
+  lateStart();
+  assert.equal(next.received.length, 1);
+  assert.equal(next.received[0].type, "SPEECH_STARTED");
+  next.close();
+});
+
+test("closing a popup aborts both pending and active microphone sessions", () => {
+  for (const started of [false, true]) {
+    const { voice, session } = speechPage();
+    if (started) session.onstart();
+    voice.close();
+    assert.equal(session.aborts, 1);
+    assert.equal(session.onend, null);
+  }
+});
+
+test("permission errors, startup timeout and overlapping sessions recover cleanly", () => {
+  const { page, voice, session } = speechPage();
+  const other = page.voice();
+  other.send("START_SPEECH_RECOGNITION");
+  assert.equal(other.received[0].error, "already-running");
+  session.onerror({ error: "not-allowed" });
+  assert.equal(voice.received.at(-1).error, "not-allowed");
+  assert.equal(session.aborts, 1);
+  const retry = page.voice();
+  retry.send("START_SPEECH_RECOGNITION");
+  page.timers.run(15000);
+  assert.equal(retry.received.at(-1).error, "start-timeout");
 });
 
 test("approval opens Reply and inserts literal multiline text without clicking Send", async () => {

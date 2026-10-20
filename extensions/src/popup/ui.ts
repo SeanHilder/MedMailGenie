@@ -1,4 +1,13 @@
-import { feedbackMessage, voiceBtn } from "./dom";
+import {
+  feedbackMessage,
+  voiceBtn,
+  readBtn,
+  replyBox,
+  approveBtn,
+  regenerateBtn,
+  toneSelect,
+  clearBtn,
+} from "./dom";
 import { state } from "./state";
 
 let feedbackTimer: number | undefined;
@@ -26,18 +35,36 @@ export function resetApproval() {
   state.replyApproved = false;
 }
 
-export function setVoiceButtonListening(listening: boolean) {
-  state.isListening = listening;
-  if (!voiceBtn) {
-    return;
+export function refreshReplyControls() {
+  const phase = state.voicePhase;
+  const recording =
+    phase === "starting" || phase === "listening" || phase === "stopping";
+  const busy = state.isGeneratingReply || state.isInsertingReply;
+  if (approveBtn)
+    approveBtn.disabled = !state.replyReady || busy || phase !== "idle";
+  if (regenerateBtn) regenerateBtn.disabled = busy || phase !== "idle";
+  if (toneSelect) toneSelect.disabled = busy || phase !== "idle";
+  if (clearBtn) clearBtn.disabled = busy;
+  if (replyBox) replyBox.readOnly = busy || recording;
+  if (readBtn) readBtn.disabled = busy || phase !== "idle";
+  if (voiceBtn) {
+    voiceBtn.disabled = busy || phase === "stopping" || phase === "formatting";
+    voiceBtn.textContent =
+      phase === "starting"
+        ? "Cancel Voice"
+        : phase === "listening"
+          ? "Stop Listening"
+          : phase === "stopping"
+            ? "Stopping..."
+            : "Voice";
+    voiceBtn.classList.toggle("listening", recording);
+    voiceBtn.setAttribute("aria-pressed", String(recording));
   }
-  if (listening) {
-    voiceBtn.textContent = "Stop Listening";
-    voiceBtn.classList.add("listening");
-  } else {
-    voiceBtn.textContent = "Voice";
-    voiceBtn.classList.remove("listening");
-  }
+}
+
+export function setVoicePhase(phase: typeof state.voicePhase) {
+  state.voicePhase = phase;
+  refreshReplyControls();
 }
 
 export function hasCurrentEmail(): boolean {

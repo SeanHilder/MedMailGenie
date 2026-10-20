@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
+import { linkedPorts, fakeTimers, settle } from "./voice-helpers.mjs";
 
 const bundle = readFileSync(
   new URL("../dist/popup.js", import.meta.url),
@@ -20,7 +21,11 @@ function element() {
     style: {},
     children: [],
     events: {},
-    classList: { add() {}, remove() {} },
+    classList: { add() {}, remove() {}, toggle() {} },
+    attributes: {},
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
     relList: { supports: () => true },
     appendChild(child) {
       this.children.push(child);
@@ -36,6 +41,7 @@ async function openPopup(
   email,
   failRequests = false,
   insertion = { success: true },
+  options = {},
 ) {
   const elements = Object.fromEntries(
     [...html.matchAll(/id="([^"]+)"/g)].map((match) => [match[1], element()]),
@@ -44,6 +50,11 @@ async function openPopup(
   const requests = [];
   const insertions = [];
   const errors = [];
+  const voices = [];
+  const windowEvents = {};
+  const timers = fakeTimers();
+  const spoken = [];
+  let speechCancelled = 0;
   elements.toneSelect.value = "professional";
   const responses = {
     "/analyze/email": {
@@ -56,20 +67,62 @@ async function openPopup(
       calendar_events: [],
     },
     "/draft/generate": { draft_reply: "Thanks, I will review it." },
+    "/voice/cleanup": { cleaned_text: "Hello team." },
   };
   vm.runInNewContext(bundle, {
     console: { error: (...args) => errors.push(args) },
     URLSearchParams,
+    AbortController,
+    SpeechSynthesisUtterance: class {
+      constructor(text) {
+        this.text = text;
+      }
+    },
     document: {
       getElementById: (id) => elements[id] ?? null,
       querySelector: (selector) => badges[selector] ?? null,
       createElement: element,
     },
-    window: { setTimeout() {}, clearTimeout() {} },
+    window: {
+      setTimeout: timers.setTimeout,
+      clearTimeout: timers.clearTimeout,
+      addEventListener: (name, listener) => {
+        windowEvents[name] = listener;
+      },
+      speechSynthesis: {
+        cancel() {
+          speechCancelled++;
+        },
+        speak(speech) {
+          spoken.push(speech);
+        },
+      },
+    },
     chrome: {
       runtime: { onMessage: { addListener() {} } },
       scripting: { executeScript: (_options, callback) => callback() },
       tabs: {
+        connect(id, connectOptions) {
+          const [client, server] = linkedPorts(connectOptions.name);
+          const messages = [];
+          let disconnected = false;
+          server.onMessage.addListener((message) => messages.push(message));
+          server.onDisconnect.addListener(() => {
+            disconnected = true;
+          });
+          voices.push({
+            id,
+            connectOptions,
+            messages,
+            client,
+            server,
+            emit: (message) => server.postMessage(message),
+            get disconnected() {
+              return disconnected;
+            },
+          });
+          return client;
+        },
         query: (_options, callback) => callback([{ id: 1 }]),
         sendMessage: (id, message, callback) => {
           if (message.type === "INSERT_APPROVED_REPLY") {
@@ -80,20 +133,37 @@ async function openPopup(
         },
       },
     },
-    async fetch(url, options) {
+    async fetch(url, requestOptions) {
       const path = new URL(url).pathname;
-      requests.push({ path, body: JSON.parse(options.body) });
+      requests.push({ path, body: JSON.parse(requestOptions.body) });
+      const data =
+        path === "/voice/cleanup" && options.cleanup
+          ? await options.cleanup(requestOptions.signal)
+          : responses[path];
       return {
         ok: !failRequests,
         status: failRequests ? 500 : 200,
-        json: async () => responses[path],
+        json: async () => data,
         text: async () => "Unavailable",
       };
     },
   });
   // Allow the popup's promise chain to settle without waiting on network or timers.
   await new Promise((resolve) => setImmediate(resolve));
-  return { elements, badges, requests, insertions, errors };
+  return {
+    elements,
+    badges,
+    requests,
+    insertions,
+    errors,
+    voices,
+    windowEvents,
+    timers,
+    spoken,
+    get speechCancelled() {
+      return speechCancelled;
+    },
+  };
 }
 
 const email = {
@@ -232,4 +302,211 @@ test("popup sends the whole Gmail thread with both analysis requests", async () 
     ]);
   }
   assert.equal(elements.emailSubject.textContent, "Report (2 messages)");
+});
+function startVoice(popup) {
+  popup.elements.voiceBtn.events.click();
+  const voice = popup.voices.at(-1);
+  voice.emit({ type: "SPEECH_STARTED" });
+  return voice;
+}
+
+function emitResult(voice, transcript) {
+  voice.emit({ type: "SPEECH_RESULT", transcript });
+}
+
+function endVoice(voice, transcript) {
+  voice.emit({ type: "SPEECH_ENDED", transcript });
+}
+
+test("Stop stays pending until recognition ends, ignores a late start, and formats once", async () => {
+  let resolveCleanup;
+  const popup = await openPopup(
+    email,
+    false,
+    { success: true },
+    {
+      cleanup: () =>
+        new Promise((resolve) => {
+          resolveCleanup = resolve;
+        }),
+    },
+  );
+  const { elements } = popup;
+  const voice = startVoice(popup);
+  assert.equal(voice.id, 1);
+  assert.equal(voice.connectOptions.frameId, 0);
+  emitResult(voice, "hello team");
+  elements.voiceBtn.events.click();
+  assert.equal(elements.voiceBtn.textContent, "Stopping...");
+  assert.equal(elements.approveBtn.disabled, true);
+  voice.emit({ type: "SPEECH_STARTED" });
+  assert.equal(elements.voiceBtn.textContent, "Stopping...");
+  elements.voiceBtn.events.click();
+  await elements.approveBtn.events.click();
+  assert.equal(popup.insertions.length, 0);
+  assert.deepEqual(
+    voice.messages.map((m) => m.type),
+    ["START_SPEECH_RECOGNITION", "STOP_SPEECH_RECOGNITION"],
+  );
+  emitResult(voice, "hello team thank you");
+  endVoice(voice, "hello team thank you");
+  assert.equal(voice.disconnected, true);
+  assert.match(elements.feedbackMessage.textContent, /Microphone stopped/);
+  assert.equal(elements.voiceBtn.attributes["aria-pressed"], "false");
+  assert.equal(elements.approveBtn.disabled, true);
+  voice.client.onMessage.emit({ type: "SPEECH_ENDED", transcript: "stale" });
+  assert.equal(
+    popup.requests.filter((r) => r.path === "/voice/cleanup").length,
+    1,
+  );
+  resolveCleanup({ cleaned_text: "Hello team, thank you." });
+  await settle();
+  assert.equal(elements.replyBox.value, "Hello team, thank you.");
+  assert.equal(elements.approveBtn.disabled, false);
+  assert.equal(elements.voiceBtn.disabled, false);
+});
+
+test("Cancel before microphone startup does not start another recording", async () => {
+  const popup = await openPopup(email);
+  popup.elements.voiceBtn.events.click();
+  assert.equal(popup.elements.voiceBtn.textContent, "Cancel Voice");
+  popup.elements.voiceBtn.events.click();
+  assert.equal(popup.voices.length, 1);
+  assert.equal(popup.voices[0].messages.at(-1).type, "STOP_SPEECH_RECOGNITION");
+  endVoice(popup.voices[0], "");
+  assert.equal(popup.elements.voiceBtn.textContent, "Voice");
+  assert.equal(popup.elements.replyBox.value, "Thanks, I will review it.");
+});
+
+test("dictation after Clear becomes approvable and snapshot updates do not duplicate words", async () => {
+  const popup = await openPopup(email);
+  popup.elements.clearBtn.events.click();
+  const voice = startVoice(popup);
+  emitResult(voice, "hello");
+  emitResult(voice, "hello team");
+  emitResult(voice, "hello team");
+  assert.equal(popup.elements.replyBox.value, "hello team");
+  endVoice(voice, "hello team");
+  await settle();
+  assert.equal(popup.elements.approveBtn.disabled, false);
+  await popup.elements.approveBtn.events.click();
+  assert.equal(popup.insertions[0].text, "Hello team.");
+});
+
+test("pending cleanup cannot overwrite manual edits, a cleared reply or a new recording", async () => {
+  for (const action of ["edit", "clear", "record"]) {
+    let resolveCleanup;
+    const popup = await openPopup(
+      email,
+      false,
+      { success: true },
+      {
+        cleanup: () =>
+          new Promise((resolve) => {
+            resolveCleanup = resolve;
+          }),
+      },
+    );
+    const voice = startVoice(popup);
+    emitResult(voice, "original words");
+    endVoice(voice, "original words");
+    if (action === "edit") {
+      popup.elements.replyBox.value = "My corrected reply";
+      popup.elements.replyBox.events.input();
+    } else {
+      popup.elements.clearBtn.events.click();
+      if (action === "record") emitResult(startVoice(popup), "new recording");
+    }
+    const expected = popup.elements.replyBox.value;
+    resolveCleanup({ cleaned_text: "Old result that arrived late." });
+    await settle();
+    assert.equal(popup.elements.replyBox.value, expected);
+    if (action === "record")
+      assert.equal(popup.elements.voiceBtn.textContent, "Stop Listening");
+    popup.windowEvents.pagehide();
+  }
+});
+
+test("formatting failure and timeout keep captured speech and unlock the controls", async () => {
+  for (const timeout of [false, true]) {
+    const popup = await openPopup(
+      email,
+      false,
+      { success: true },
+      {
+        cleanup: (signal) =>
+          timeout
+            ? new Promise((_, reject) =>
+                signal.addEventListener("abort", () =>
+                  reject(new Error("timeout")),
+                ),
+              )
+            : Promise.reject(new Error("offline")),
+      },
+    );
+    const voice = startVoice(popup);
+    endVoice(voice, "keep these words");
+    if (timeout) popup.timers.run(10000);
+    await settle();
+    assert.equal(popup.elements.replyBox.value, "keep these words");
+    assert.equal(popup.elements.approveBtn.disabled, false);
+    assert.equal(popup.elements.voiceBtn.disabled, false);
+    assert.match(
+      popup.elements.feedbackMessage.textContent,
+      /Formatting was unavailable/,
+    );
+  }
+});
+
+test("microphone errors and tab disconnection unlock voice without erasing the draft", async () => {
+  for (const disconnect of [false, true]) {
+    const popup = await openPopup(email);
+    const voice = startVoice(popup);
+    if (disconnect) voice.server.disconnect();
+    else
+      voice.emit({
+        type: "SPEECH_ERROR",
+        error: "not-allowed",
+        transcript: "",
+      });
+    assert.equal(popup.elements.replyBox.value, "Thanks, I will review it.");
+    assert.equal(popup.elements.voiceBtn.textContent, "Voice");
+    assert.equal(popup.elements.voiceBtn.disabled, false);
+    assert.equal(popup.elements.replyBox.readOnly, false);
+    if (!disconnect)
+      assert.match(
+        popup.elements.feedbackMessage.textContent,
+        /Allow microphone access/,
+      );
+  }
+});
+
+test("closing the popup disconnects voice, and dictation stops Read Aloud", async () => {
+  const popup = await openPopup(email);
+  popup.elements.readBtn.events.click();
+  assert.equal(popup.elements.readBtn.textContent, "Stop Reading");
+  const cancelledBefore = popup.speechCancelled;
+  const voice = startVoice(popup);
+  assert.ok(popup.speechCancelled > cancelledBefore);
+  assert.equal(popup.elements.readBtn.textContent, "Read Aloud");
+  popup.elements.readBtn.events.click();
+  assert.equal(popup.spoken.length, 1);
+  popup.windowEvents.pagehide();
+  assert.equal(voice.disconnected, true);
+});
+
+test("Read Aloud still toggles, finishes and ignores delayed completion from previous speech", async () => {
+  const popup = await openPopup(email);
+  const button = popup.elements.readBtn;
+  button.events.click();
+  const first = popup.spoken[0];
+  first.onstart();
+  assert.match(popup.elements.feedbackMessage.textContent, /Reading aloud/);
+  button.events.click();
+  assert.equal(button.textContent, "Read Aloud");
+  button.events.click();
+  first.onend();
+  assert.equal(button.textContent, "Stop Reading");
+  popup.spoken[1].onend();
+  assert.equal(button.textContent, "Read Aloud");
 });

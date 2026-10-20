@@ -86,6 +86,8 @@ Use a sample email to check summary, priority, topic, tasks, and reply generatio
 
 The popup must stay open during voice input. Allow microphone access if Chrome requests it. Review and edit a draft, then click **Approve**. The extension opens Reply for the analysed message and inserts the text above any signature and quoted history. Review the result in Gmail and click **Send** yourself. No Gmail API setup is required; Gmail may autosave the inserted draft.
 
+For voice input, wait until the button says **Stop Listening**, speak, then click it once. **Stopping...** waits for the final words before formatting the reply. If recognition gets stuck, it is cancelled after two seconds. **Cancel Voice** cancels microphone startup, and closing the popup also stops recording. If formatting fails or takes more than ten seconds, the captured text remains available for editing.
+
 To test approval, use a sample conversation with no existing reply text. Confirm that approval opens a reply, preserves line breaks, and does not send it. Repeat with an existing handwritten draft: insertion should stop and preserve your text. If the conversation changes after loading, reopen MedMailGenie to analyse it again. The popup analyses the last expanded, visible message. Reply-button detection currently uses Gmail's English labels; changed layouts or other languages may require opening Reply manually or using **Copy Reply**.
 
 ## Troubleshooting

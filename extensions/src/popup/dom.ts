@@ -22,7 +22,9 @@ export const regenerateBtn = document.getElementById(
 export const voiceBtn = document.getElementById(
   "voiceBtn",
 ) as HTMLButtonElement | null;
-export const readBtn = document.getElementById("readBtn");
+export const readBtn = document.getElementById(
+  "readBtn",
+) as HTMLButtonElement | null;
 export const copyBtn = document.getElementById("copyBtn");
 export const clearBtn = document.getElementById(
   "clearBtn",

@@ -8,9 +8,13 @@ import {
   replyBox,
   toneSelect,
   regenerateBtn,
-  approveBtn,
 } from "./dom";
-import { showFeedback, resetApproval, hasCurrentEmail } from "./ui";
+import {
+  showFeedback,
+  resetApproval,
+  hasCurrentEmail,
+  refreshReplyControls,
+} from "./ui";
 import { postJson } from "../api";
 import type { EmailAnalysis, TaskExtraction } from "../types";
 
@@ -181,12 +185,16 @@ export async function generateDraftReply(showFeedbackMessages: boolean = true) {
     replyBox.value = "Open an email before generating a reply.";
     return;
   }
-  if (state.isGeneratingReply) {
+  if (
+    state.isGeneratingReply ||
+    state.isInsertingReply ||
+    state.voicePhase !== "idle"
+  ) {
     return;
   }
   state.isGeneratingReply = true;
   state.replyReady = false;
-  if (approveBtn) approveBtn.disabled = true;
+  refreshReplyControls();
   const selectedTone = toneSelect?.value || "professional";
   resetApproval();
   if (showFeedbackMessages) {
@@ -218,7 +226,7 @@ export async function generateDraftReply(showFeedbackMessages: boolean = true) {
     }
   } finally {
     state.isGeneratingReply = false;
-    if (approveBtn) approveBtn.disabled = !state.replyReady;
+    refreshReplyControls();
     if (regenerateBtn) {
       regenerateBtn.disabled = false;
       regenerateBtn.title = "Regenerate reply";

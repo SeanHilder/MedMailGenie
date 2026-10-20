@@ -1,5 +1,5 @@
 import { readCurrentEmail, insertApprovedReply } from "./content/gmail";
-import { createSpeechMessageHandler } from "./content/speech";
+import { createSpeechPortHandler } from "./content/speech";
 
 // The popup may inject this script into an already-open tab. Register once per page.
 const page = globalThis as typeof globalThis & {
@@ -7,7 +7,7 @@ const page = globalThis as typeof globalThis & {
 };
 if (!page.medMailGenieInitialized) {
   page.medMailGenieInitialized = true;
-  const handleSpeechMessage = createSpeechMessageHandler();
+  chrome.runtime.onConnect.addListener(createSpeechPortHandler());
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "INSERT_APPROVED_REPLY") {
       void insertApprovedReply(message.contextId, message.text).then(
@@ -20,6 +20,5 @@ if (!page.medMailGenieInitialized) {
       void readCurrentEmail().then(sendResponse);
       return true;
     }
-    handleSpeechMessage(message, sendResponse);
   });
 }
